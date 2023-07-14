@@ -397,6 +397,24 @@ class ProcessMCBase(process_base.ProcessBase):
   # fj_particles is the list of fastjet pseudojets for a single fixed event.
   #---------------------------------------------------------------
   def analyze_event(self, fj_particles_det, fj_particles_truth, fj_particles_det_holes=None, fj_particles_truth_holes=None, particles_mcid_det=None, particles_pid_truth=None):
+    
+    det_pt_output = "DETECTOR PARTICLES pt: "
+    det_id_output = "DETECTOR PARTICLES id: "
+    for d_part in fj_particles_det:
+        det_pt_output += str(d_part.perp()) + " "
+        det_id_output += str(d_part.user_index()) + " "
+    print(det_pt_output)
+    print(det_id_output)
+    
+    truth_pt_output = "TRUTH PARTICLES pt: "
+    truth_id_output = "TRUTH PARTICLES id: "
+    for d_part in fj_particles_truth:
+        truth_pt_output += str(d_part.perp()) + " "
+        truth_id_output += str(d_part.user_index()) + " "
+    print(truth_pt_output)
+    print(truth_id_output)
+    
+    exit()
   
     self.event_number += 1
     if self.event_number > self.event_number_max:

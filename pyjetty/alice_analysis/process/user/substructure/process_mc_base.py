@@ -374,7 +374,7 @@ class ProcessMCBase(process_base.ProcessBase):
       for attr in dir(self):
         obj = getattr(self, attr)
         print('size of {}: {}'.format(attr, sys.getsizeof(obj)))
-        
+    
     print('Save thn...')
     process_base.ProcessBase.save_thn_th3_objects(self)
     
@@ -398,6 +398,13 @@ class ProcessMCBase(process_base.ProcessBase):
   #---------------------------------------------------------------
   def analyze_event(self, fj_particles_det, fj_particles_truth, fj_particles_det_holes=None, fj_particles_truth_holes=None, particles_mcid_det=None, particles_pid_truth=None):
     
+    # match tracks, jet clustering, pairs, pair matching, table write out
+    self.analyze_matched_pairs(fj_particles_det, fj_particles_truth, jetR=0.4)
+
+    # just produce omnifold table 
+    # will be changed into flag later TODO
+    return
+
     det_pt_output = "DETECTOR PARTICLES pt: "
     det_id_output = "DETECTOR PARTICLES id: "
     for d_part in fj_particles_det:
@@ -986,3 +993,8 @@ class ProcessMCBase(process_base.ProcessBase):
                                   **kwargs):
 
     raise NotImplementedError('You must implement fill_matched_jet_histograms()!')
+
+
+# omnifold preprocessing function
+def analyze_matched_pairs(fj_particles_det, fj_particles_truth):
+  raise NotImplementedError('You must implement analyze_matched_pairs() in process_mc_ENC.py!')

@@ -18,6 +18,7 @@ import ROOT
 import yaml
 import numpy as np
 from array import *
+import pandas as pd
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj
@@ -421,8 +422,65 @@ class ProcessBase(common_base.CommonBase):
       types = (ROOT.TH1, ROOT.THnBase, ROOT.TTree)
       if isinstance(obj, types):
         obj.Write()
-  
+        
     fout.Close()
+    
+    if 'preprocessed_np_mc' in dir(self):
+        name = 'preprocessed'
+        data_array = getattr(self, 'preprocessed_np_mc')
+        
+        print("preprocessed_np_mc DATA ARRAY")
+        print(data_array)
+        
+        outputfilename = os.path.join(self.output_dir, 'preprocessed_mc.root')
+        fout = ROOT.TFile(outputfilename, 'recreate')
+        
+        tree = ROOT.TTree(name, name)
+        branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'obs_thrown']
+        
+        branch_buffers = {}
+        for branch_name in branches:
+            branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
+            tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
+            
+        for i in range(data_array.shape[0]):
+            for j, branch_name in enumerate(branches):
+                branch_buffers[branch_name][0] = data_array[i, j]
+
+            tree.Fill()
+        
+        tree.Write()
+        fout.Write()
+        fout.Close()
+        
+    if 'preprocessed_np_data' in dir(self):
+        name = 'preprocessed'
+        data_array = getattr(self, 'preprocessed_np_data')
+        
+        print("preprocessed_np_data DATA ARRAY")
+        print(data_array)
+        
+        outputfilename = os.path.join(self.output_dir, 'preprocessed_data.root')
+        fout = ROOT.TFile(outputfilename, 'recreate')
+        
+        tree = ROOT.TTree(name, name)
+        branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt']
+        
+        branch_buffers = {}
+        for branch_name in branches:
+            branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
+            tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
+            
+        for i in range(data_array.shape[0]):
+            for j, branch_name in enumerate(branches):
+                branch_buffers[branch_name][0] = data_array[i, j]
+
+            tree.Fill()
+        
+        tree.Write()
+        fout.Write()
+        fout.Close()
+        
 
   #---------------------------------------------------------------
   # Save all THn and TH3, and remove them as class attributes (to clear memory)

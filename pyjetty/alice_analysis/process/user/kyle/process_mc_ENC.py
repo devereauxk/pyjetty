@@ -20,7 +20,6 @@ import ROOT
 import yaml
 import array
 import math
-# from array import *
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj
@@ -45,6 +44,26 @@ def logbins(xmin, xmax, nbins):
   lspace = np.logspace(np.log10(xmin), np.log10(xmax), nbins+1)
   arr = array.array('f', lspace)
   return arr
+
+
+################################################################
+class EEC_pair:
+	def __init__(self, _index1, _index2, _weight, _r, _pt):
+		self.index1 = _index1
+		self.index2 = _index2
+		self.weight = _weight
+		self.r = _r
+		self.pt = _pt
+
+	def is_equal(self, pair2):
+		return (self.index1 == pair2.index1 and self.index2 == pair2.index2) \
+			or (self.index1 == pair2.index2 and self.index2 == pair2.index1)
+	
+	def __str__(self):
+		return "EEC pair with (index1, index2, weight, RL, pt) = (" + \
+			str(self.index1) + ", " + str(self.index2) + ", " + str(self.weight) + \
+			", " + str(self.r) + ", " + str(self.pt) + ")"
+
 
 ################################################################
 class ProcessMC_ENC(process_mc_base.ProcessMCBase):
@@ -111,6 +130,72 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
   # Initialize histograms
   #---------------------------------------------------------------
   def initialize_user_output_objects_R(self, jetR):
+    
+        # single items to be sent to the output root file
+    # csv output for omnifold, format (truth weight, truth r, truth jet pt, det weight, det r, det jet pt)
+    """
+    name = 'preprocessed'
+    h = ROOT.TTree(name, name)
+    tree_buffer_size = 10 * 1000 * 1024 * 1024
+    h.SetMaxTreeSize(tree_buffer_size)
+    h.Branch("gen_energy_weight", gen_energy_weight, "gen_energy_weight/D")
+    h.Branch("gen_R_L", gen_R_L, "gen_R_L/D")
+    h.Branch("gen_jet_pt", gen_jet_pt, "gen_jet_pt/D")
+    h.Branch("obs_energy_weight", obs_energy_weight, "obs_energy_weight/D")
+    h.Branch("obs_R_L", obs_R_L, "obs_R_L/D")
+    h.Branch("obs_jet_pt", obs_jet_pt, "obs_jet_pt/D")
+    h.Branch("obs_thrown", obs_thrown, "obs_thrown/D")
+    setattr(self, name, h)
+    """
+    
+    # np array with the format
+    # ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'obs_thrown']
+    name = 'preprocessed_np_mc'
+    shape = (0,7)
+    h = np.empty(shape)
+    setattr(self, name, h)
+    
+    # delta-eta-delta-phi distribution for truth and matched reco particles
+    name = 'h2d_matched_part_deta_pt'
+    eta_bins = linbins(-0.05, 0.05, 100)
+    pt_bins = linbins(0, 10, 100)
+    h = ROOT.TH2D(name, name, 100, eta_bins, 100, pt_bins)
+    h.GetXaxis().SetTitle('#Delta#eta')
+    h.GetYaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    name = 'h2d_matched_part_dphi_pt'
+    phi_bins = linbins(-0.02, 0.02, 100)
+    pt_bins = linbins(0, 10, 100)
+    h = ROOT.TH2D(name, name, 100, phi_bins, 100, pt_bins)
+    h.GetXaxis().SetTitle('#Delta#phi')
+    h.GetYaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    # matching efficiency of reco tracks wrt truth tracks, as a function of pt
+    name = 'h1d_truth_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+    
+    name = 'h1d_det_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    name = 'h1d_truth_matched_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+    
+    name = 'h1d_det_matched_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
 
     for observable in self.observable_list:
 
@@ -362,6 +447,7 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
                 self.create_response_histograms(observable, ipoint, jetR, trk_thrd, R_max)          
             else:
               self.create_response_histograms(observable, ipoint, jetR, trk_thrd)
+
           
 
   #---------------------------------------------------------------
@@ -601,6 +687,183 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     if 'jet_pt' in observable:
       getattr(self, hname.format(observable,obs_label)).Fill(jet_pt)
 
+
+  def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth, jetR=0.4):
+    
+    for det_part in fj_particles_det:
+        hname = 'h1d_det_part_pt'
+        getattr(self, hname).Fill(det_part.perp())
+
+    ############################# TRACK MATCHING ################################
+    # set all indicies to dummy index
+    dummy_index = -1
+    for i in range(len(fj_particles_truth)):
+      fj_particles_truth[i].set_user_index(dummy_index)
+    for i in range(len(fj_particles_det)):
+      fj_particles_det[i].set_user_index(dummy_index)
+    
+    # perform matching, give matches the same user_index
+    index = 0
+    det_used = []
+    # note: CANNOT loop like this: <for truth_part in fj_particles_truth:>
+    for itruth in range(len(fj_particles_truth)):
+      truth_part = fj_particles_truth[itruth]
+    
+      truth_part.set_user_index(index)
+        
+      candidates = []
+      candidates_R = []
+        
+      for idet in range(len(fj_particles_det)):
+        det_part = fj_particles_det[idet]
+        
+        delta_R = self.calculate_distance(truth_part, det_part)
+        if delta_R < 0.05 and abs((det_part.perp() - truth_part.perp()) / truth_part.perp()) < 0.1 \
+                and det_part not in det_used:
+            candidates.append(det_part)
+            candidates_R.append(delta_R)
+
+      # if match found
+      if len(candidates) > 0:
+        det_match = candidates[np.argmin(candidates_R)]
+        det_match.set_user_index(index)
+        det_used.append(det_match)
+
+        deta = det_match.eta() - truth_part.eta()
+        dphi = det_match.phi() - truth_part.phi()
+
+        hname = 'h2d_matched_part_deta_pt'
+        getattr(self, hname).Fill(deta, truth_part.perp())
+
+        hname = 'h2d_matched_part_dphi_pt'
+        getattr(self, hname).Fill(dphi, truth_part.perp())
+
+        hname = 'h1d_truth_matched_part_pt'
+        getattr(self, hname).Fill(truth_part.perp())
+        
+        hname = 'h1d_det_matched_part_pt'
+        getattr(self, hname).Fill(det_match.perp())
+
+
+      hname = 'h1d_truth_part_pt'
+      getattr(self, hname).Fill(truth_part.perp())
+
+      index += 1
+
+    # handle unmatched particles, give them all different user_index s
+    for i in range(len(fj_particles_truth)):
+      part = fj_particles_truth[i]
+      if part.user_index() == dummy_index:
+        part.set_user_index(index)
+        index += 1
+    for i in range(len(fj_particles_det)):
+      part = fj_particles_det[i]
+      if part.user_index() == dummy_index:
+        part.set_user_index(index)
+        index += 1
+
+
+    ############################# JET RECO ################################
+    # Set jet definition and a jet selector
+    jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
+    jet_selector_det = fj.SelectorPtMin(5.0) & fj.SelectorAbsRapMax(0.9 - jetR)
+
+    cs_truth = fj.ClusterSequence(fj_particles_truth, jet_def)
+    truth_jets = fj.sorted_by_pt(jet_selector_det(cs_truth.inclusive_jets()))
+
+    cs_det = fj.ClusterSequence(fj_particles_det, jet_def)
+    det_jets = fj.sorted_by_pt(jet_selector_det(cs_det.inclusive_jets()))
+
+	# truth level EEC pairs
+    truth_pairs = []
+    for jet in truth_jets:
+      truth_pairs += self.get_EEC_pairs(jet, ipoint=2)
+
+    # det level EEC pairs
+    det_pairs = []
+    for jet in det_jets:
+      det_pairs += self.get_EEC_pairs(jet, ipoint=2)
+
+
+    ########################## TTree output generation #########################
+	# composite of truth and smeared pairs, fill the TTree preprocessed
+    dummyval = -9999
+
+    # find TTree TODO
+    name = 'preprocessed_np_mc'
+    preprocessed_np = getattr(self, name)
+
+    # pair mathcing
+    for t_pair in truth_pairs:
+
+        gen_energy_weight = t_pair.weight
+        gen_R_L = t_pair.r
+        gen_jet_pt = t_pair.pt
+        obs_thrown = 0
+
+        match_found = False
+        for d_pair in det_pairs:
+            if d_pair.is_equal(t_pair):
+                obs_energy_weight = d_pair.weight
+                obs_R_L = d_pair.r
+                obs_jet_pt = d_pair.pt
+                match_found = True
+                break
+        if not match_found:
+            obs_energy_weight = dummyval
+            obs_R_L = dummyval
+            obs_jet_pt = dummyval
+            obs_thrown = 1
+            
+        new_row = [gen_energy_weight, gen_R_L, gen_jet_pt, obs_energy_weight, obs_R_L, obs_jet_pt, obs_thrown]
+        preprocessed_np = np.vstack([preprocessed_np, new_row])
+        setattr(self, name, preprocessed_np)
+        
+    """
+    line = ""
+    for part in fj_particles_truth:
+        line += str(part.user_index()) + " "
+    print(line)
+    
+    line = ""
+    for part in fj_particles_det:
+        line += str(part.user_index()) + " "
+    print(line)
+    """
+        
+
+
+  def get_EEC_pairs(self, jet, ipoint=2):
+    pairs = []
+
+    jet_pt = jet.perp()
+
+    #push constutents to a vector in python
+    _v = fj.vectorPJ()
+    _ = [_v.push_back(c) for c in jet.constituents()]
+
+    # n-point correlator with all charged particles
+    max_npoint = 2
+    weight_power = 1
+    dphi_cut = -9999
+    deta_cut = -9999
+    cb = ecorrel.CorrelatorBuilder(_v, jet_pt, max_npoint, weight_power, dphi_cut, deta_cut)
+
+    EEC_cb = cb.correlator(ipoint)
+
+    EEC_weights = EEC_cb.weights() # cb.correlator(npoint).weights() constains list of weights
+    EEC_rs = EEC_cb.rs() # cb.correlator(npoint).rs() contains list of RL
+    EEC_indicies1 = EEC_cb.indices1() # contains list of 1st track in the pair (index should be based on the indices in c_select)
+    EEC_indicies2 = EEC_cb.indices2() # contains list of 2nd track in the pair
+
+    for i in range(len(EEC_rs)):
+      event_index1 = _v[EEC_indicies1[i]].user_index()
+      event_index2 = _v[EEC_indicies2[i]].user_index()
+      pairs.append(EEC_pair(event_index1, event_index2, EEC_weights[i], EEC_rs[i], jet_pt))
+
+    return pairs
+
+
   #---------------------------------------------------------------
   # This function is called per jet subconfigration 
   # Fill matched jet histograms
@@ -825,5 +1088,6 @@ if __name__ == '__main__':
     print('File \"{0}\" does not exist! Exiting!'.format(args.configFile))
     sys.exit(0)
 
+  # perform analysis
   analysis = ProcessMC_ENC(input_file=args.inputFile, config_file=args.configFile, output_dir=args.outputDir)
   analysis.process_mc()

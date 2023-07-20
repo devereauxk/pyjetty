@@ -325,6 +325,10 @@ class ProcessDataBase(process_base.ProcessBase):
       # Call user function to fill histograms
       self.fill_jet_histograms(jet, jet_groomed_lund, jetR, obs_setting, grooming_setting,
                                obs_label, jet_pt_ungroomed, suffix)
+        
+      # Call user function to fill tabular TTree output
+      # used for outputing pair information for unfolding
+      self.fill_jet_tables(jet)
 
   #---------------------------------------------------------------
   # This function is called once
@@ -342,3 +346,7 @@ class ProcessDataBase(process_base.ProcessBase):
                           obs_label, jet_pt_ungroomed, suffix):
   
     raise NotImplementedError('You must implement fill_jet_histograms()!')
+
+  def fill_jet_tables(self, jet):
+
+    raise NotImplementedError('You must implement fill_jet_tables()!')

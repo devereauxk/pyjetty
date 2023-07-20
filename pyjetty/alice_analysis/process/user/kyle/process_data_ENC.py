@@ -63,7 +63,7 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
   def initialize_user_output_objects(self):
         
     # np array with the format
-    # ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt']
+    # ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt']
     name = 'preprocessed_np_data'
     shape = (0,3)
     h = np.empty(shape)

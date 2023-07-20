@@ -464,7 +464,7 @@ class ProcessBase(common_base.CommonBase):
         fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
-        branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt']
+        branches = ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt']
         
         branch_buffers = {}
         for branch_name in branches:

@@ -690,6 +690,16 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
 
   def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth, jetR=0.4):
     
+    #handle case with no truth particles
+    if type(fj_particles_truth) is float:
+        print("EVENT WITH NO TRUTH PARTICLES!!!")
+        return
+    
+    #handle case with no det particles
+    if type(fj_particles_det) is float:
+        print("EVENT WITH NO DET PARTICLES!!!")
+        fj_particles_det = []
+        
     for det_part in fj_particles_det:
         hname = 'h1d_det_part_pt'
         getattr(self, hname).Fill(det_part.perp())
@@ -770,7 +780,7 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
 
     cs_truth = fj.ClusterSequence(fj_particles_truth, jet_def)
     truth_jets = fj.sorted_by_pt(jet_selector_det(cs_truth.inclusive_jets()))
-
+    
     cs_det = fj.ClusterSequence(fj_particles_det, jet_def)
     det_jets = fj.sorted_by_pt(jet_selector_det(cs_det.inclusive_jets()))
 

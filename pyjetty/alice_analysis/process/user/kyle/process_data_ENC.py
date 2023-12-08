@@ -62,17 +62,16 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
   #---------------------------------------------------------------
   def initialize_user_output_objects(self):
         
-    # np array with the format
-    # ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt']
+    # python array with the format (faster than np array!)
+    # ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'event_n']
     name = 'preprocessed_np_data'
-    shape = (0,3)
-    h = np.empty(shape)
+    h = []
     setattr(self, name, h)
 
     for jetR in self.jetR_list:
       for observable in self.observable_list:
         for trk_thrd in self.obs_settings[observable]:
-
+        
           obs_label = self.utils.obs_label(trk_thrd, None) 
           if self.is_pp:
               # Init ENC histograms
@@ -119,7 +118,26 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
                 h.GetXaxis().SetTitle('p_{T,ch jet}')
                 h.GetYaxis().SetTitle('Counts')
                 setattr(self, name, h)
-                    
+            
+              if observable == "trk_pt":
+                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
+                pt_bins = linbins(0,100,200)
+                h = ROOT.TH1D(name, name, 200, pt_bins)
+                h.GetXaxis().SetTitle('p_{T,ch trk}')
+                h.GetYaxis().SetTitle('Counts')
+                setattr(self, name, h)
+                
+              if 'jet-trk_shape' in observable or 'jet-trk_ptprofile' in observable:
+                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
+                RL_bins = linbins(0,jetR,50)
+                pt_bins = linbins(0,100,200)
+                z_bins = logbins(1.e-5, 1., 80)
+                h = ROOT.TH3D(name, name, 50, RL_bins, 200, pt_bins, 80, z_bins)
+                h.GetXaxis().SetTitle('#Delta R')
+                h.GetYaxis().SetTitle('p_{T,ch trk}')
+                h.GetZaxis().SetTitle('z')
+                setattr(self, name, h)
+
   #---------------------------------------------------------------
   # Calculate pair distance of two fastjet particles
   #---------------------------------------------------------------
@@ -167,11 +185,9 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
     EEC_rs = EEC_cb.rs() # cb.correlator(npoint).rs() contains list of RL
     
     name = 'preprocessed_np_data'
-    preprocessed_np = getattr(self, name)
     for i in range(len(EEC_rs)):
-        new_row = [EEC_weights[i], EEC_rs[i], jet_pt]
-        preprocessed_np = np.vstack([preprocessed_np, new_row])    
-    setattr(self, name, preprocessed_np)
+        new_row = [EEC_weights[i], EEC_rs[i], jet_pt, self.event_number]
+        getattr(self, name).append(new_row)
     
     
   #---------------------------------------------------------------
@@ -222,7 +238,23 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
               getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp(), new_corr.correlator(ipoint).rs()[index], pow(new_corr.correlator(ipoint).weights()[index],2))
 
       if 'jet_pt' in observable:
-        getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp())   
+        getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp())
+
+      if observable == "trk_pt":
+        for c in c_select:
+            getattr(self, hname.format(observable, jetR, obs_label)).Fill(c.perp())
+            
+      if 'jet-trk' in observable:
+        h = getattr(self, hname.format(observable, jetR, obs_label))
+        
+        for c in c_select:
+            rl = jet.delta_R(c)
+            
+            if 'shape' in observable:
+                h.Fill(rl, c.perp(), c.perp()/jet.perp())
+                
+            elif 'ptprofile' in observable:
+                h.Fill(rl, c.perp(), c.perp()/jet.perp(), c.perp())
           
 
 ##################################################################

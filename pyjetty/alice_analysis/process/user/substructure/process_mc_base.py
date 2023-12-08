@@ -398,6 +398,15 @@ class ProcessMCBase(process_base.ProcessBase):
   #---------------------------------------------------------------
   def analyze_event(self, fj_particles_det, fj_particles_truth, fj_particles_det_holes=None, fj_particles_truth_holes=None, particles_mcid_det=None, particles_pid_truth=None):
     
+    self.event_number += 1
+    if self.event_number > self.event_number_max:
+      return
+    if self.debug_level > 1:
+      print('-------------------------------------------------')
+      print('event {}'.format(self.event_number))
+        
+    if self.event_number % 1000 == 0: print("analyzing event : " + str(self.event_number))
+    
     # match tracks, jet clustering, pairs, pair matching, table write out
     self.analyze_matched_pairs(fj_particles_det, fj_particles_truth, jetR=0.4)
 
@@ -422,13 +431,6 @@ class ProcessMCBase(process_base.ProcessBase):
     print(truth_id_output)
     
     exit()
-  
-    self.event_number += 1
-    if self.event_number > self.event_number_max:
-      return
-    if self.debug_level > 1:
-      print('-------------------------------------------------')
-      print('event {}'.format(self.event_number))
 
     # print('debug5 det parts',fj_particles_det)
     # print('debug5 mcid',particles_mcid_det)

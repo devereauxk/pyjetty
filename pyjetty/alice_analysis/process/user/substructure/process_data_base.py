@@ -86,6 +86,47 @@ class ProcessDataBase(process_base.ProcessBase):
         self.ENC_pair_unlike = config['ENC_pair_unlike']
     else:
         self.ENC_pair_unlike = False
+        
+    if 'do_rho_subtraction' in config:
+      self.do_rho_subtraction = config['do_rho_subtraction']
+    else:
+      self.do_rho_subtraction = False
+
+    if 'do_perpcone' in config:
+      self.do_perpcone = config['do_perpcone']
+    else:
+      self.do_perpcone = False
+
+    if 'do_jetcone' in config:
+      self.do_jetcone = config['do_jetcone']
+    else:
+      self.do_jetcone = False
+    if self.do_jetcone and 'jetcone_R_list' in config:
+      self.jetcone_R_list = config['jetcone_R_list']
+    else:
+      self.jetcone_R_list = [0.4] # NB: set default value to 0.4
+
+    if 'leading_pt' in config:
+        self.leading_pt = config['leading_pt']
+    else:
+        self.leading_pt = -1 # negative means no leading track cut
+
+    # if only processing dijets 
+    if 'leading_jet' in config:
+      self.leading_jet = config['leading_jet']
+    else:
+      self.leading_jet = False
+    if 'subleading_jet' in config:
+      self.subleading_jet = config['subleading_jet']
+    else:
+      self.subleading_jet = False
+
+    # NB: safeguard, make sure to only process one type at a time
+    if (self.leading_jet and (not self.subleading_jet)) or ((not self.leading_jet) and self.subleading_jet):
+      self.is_dijet = True
+      self.xj_interval = 0.2
+    else:
+      self.is_dijet = False
     
     # Create dictionaries to store grooming settings and observable settings for each observable
     # Each dictionary entry stores a list of subconfiguration parameters
@@ -216,6 +257,8 @@ class ProcessDataBase(process_base.ProcessBase):
     if self.debug_level > 1:
       print('-------------------------------------------------')
       print('event {}'.format(self.event_number))
+        
+    if self.event_number % 1000 == 0: print("analyzing event : " + str(self.event_number))
     
     if len(fj_particles) > 1:
       if np.abs(fj_particles[0].pt() - fj_particles[1].pt()) <  1e-10:

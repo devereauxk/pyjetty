@@ -89,6 +89,15 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     for idp in range(self.dpbin):
         hname = 'h1d_eff_vs_dR_in_dq_over_p_{}'.format(idp)
         self.h1d_eff_vs_dR_in_dq_over_p.append( ROOT.TH1D(self.pair_eff_file.Get(hname)) )
+    
+    # find pt_hat for set of events in input_file, assumes all events in input_file are in the same pt_hat bin
+    self.pt_hat_bin = int(input_file.split('/')[len(input_file.split('/'))-4]) # depends on exact format of input_file name
+    with open("/global/cfs/projectdirs/alice/alicepro/hiccup/rstorage/alice/data/LHC18b8/scaleFactors.yaml", 'r') as stream:
+        pt_hat_yaml = yaml.safe_load(stream)
+    self.pt_hat = pt_hat_yaml[self.pt_hat_bin]
+    print("pt hat bin : " + str(self.pt_hat_bin))
+    print("pt hat weight : " + str(self.pt_hat))
+    
 
   #---------------------------------------------------------------
   # Determine pair efficiency with the pair
@@ -148,11 +157,10 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     setattr(self, name, h)
     """
     
-    # np array with the format
-    # ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'obs_thrown']
+    # python array with the format (faster than np array!)
+    # ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'pt_hat']
     name = 'preprocessed_np_mc'
-    shape = (0,7)
-    h = np.empty(shape)
+    h = []
     setattr(self, name, h)
     
     # delta-eta-delta-phi distribution for truth and matched reco particles
@@ -799,10 +807,6 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
 	# composite of truth and smeared pairs, fill the TTree preprocessed
     dummyval = -9999
 
-    # find TTree TODO
-    name = 'preprocessed_np_mc'
-    preprocessed_np = getattr(self, name)
-
     # pair mathcing
     for t_pair in truth_pairs:
 
@@ -824,10 +828,11 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
             obs_R_L = dummyval
             obs_jet_pt = dummyval
             obs_thrown = 1
-            
-        new_row = [gen_energy_weight, gen_R_L, gen_jet_pt, obs_energy_weight, obs_R_L, obs_jet_pt, obs_thrown]
-        preprocessed_np = np.vstack([preprocessed_np, new_row])
-        setattr(self, name, preprocessed_np)
+        
+        # find TTree TODO
+        name = 'preprocessed_np_mc'
+        getattr(self, name).append([gen_energy_weight, gen_R_L, gen_jet_pt, obs_energy_weight, obs_R_L, obs_jet_pt, self.pt_hat, self.event_number])
+        
         
     """
     line = ""

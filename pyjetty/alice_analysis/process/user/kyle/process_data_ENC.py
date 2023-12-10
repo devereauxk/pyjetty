@@ -64,9 +64,10 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
         
     # python array with the format (faster than np array!)
     # ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'event_n']
-    name = 'preprocessed_np_data'
-    h = []
-    setattr(self, name, h)
+    if 'proprocessed' in self.observable_list:
+      name = 'preprocessed_np_data'
+      h = []
+      setattr(self, name, h)
 
     for jetR in self.jetR_list:
       for observable in self.observable_list:
@@ -161,34 +162,6 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
       return True
     else:
       return False
-  
-    
-  def fill_jet_tables(self, jet, ipoint=2):
-    constituents = fj.sorted_by_pt(jet.constituents())
-    
-    jet_pt = jet.perp()
-
-    #push constutents to a vector in python
-    _v = fj.vectorPJ()
-    _ = [_v.push_back(c) for c in jet.constituents()]
-
-    # n-point correlator with all charged particles
-    max_npoint = 2
-    weight_power = 1
-    dphi_cut = -9999
-    deta_cut = -9999
-    cb = ecorrel.CorrelatorBuilder(_v, jet_pt, max_npoint, weight_power, dphi_cut, deta_cut)
-
-    EEC_cb = cb.correlator(ipoint)
-
-    EEC_weights = EEC_cb.weights() # cb.correlator(npoint).weights() constains list of weights
-    EEC_rs = EEC_cb.rs() # cb.correlator(npoint).rs() contains list of RL
-    
-    name = 'preprocessed_np_data'
-    for i in range(len(EEC_rs)):
-        new_row = [EEC_weights[i], EEC_rs[i], jet_pt, self.event_number]
-        getattr(self, name).append(new_row)
-    
     
   #---------------------------------------------------------------
   # This function is called once for each jet subconfiguration
@@ -255,6 +228,35 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
                 
             elif 'ptprofile' in observable:
                 h.Fill(rl, c.perp(), c.perp()/jet.perp(), c.perp())
+
+      if 'preprocessed' in observable:
+        self.fill_jet_tables(jet)
+
+  def fill_jet_tables(self, jet, ipoint=2):
+    constituents = fj.sorted_by_pt(jet.constituents())
+    
+    jet_pt = jet.perp()
+
+    #push constutents to a vector in python
+    _v = fj.vectorPJ()
+    _ = [_v.push_back(c) for c in jet.constituents()]
+
+    # n-point correlator with all charged particles
+    max_npoint = 2
+    weight_power = 1
+    dphi_cut = -9999
+    deta_cut = -9999
+    cb = ecorrel.CorrelatorBuilder(_v, jet_pt, max_npoint, weight_power, dphi_cut, deta_cut)
+
+    EEC_cb = cb.correlator(ipoint)
+
+    EEC_weights = EEC_cb.weights() # cb.correlator(npoint).weights() constains list of weights
+    EEC_rs = EEC_cb.rs() # cb.correlator(npoint).rs() contains list of RL
+    
+    name = 'preprocessed_np_data'
+    for i in range(len(EEC_rs)):
+        new_row = [EEC_weights[i], EEC_rs[i], jet_pt, self.event_number]
+        getattr(self, name).append(new_row)
           
 
 ##################################################################

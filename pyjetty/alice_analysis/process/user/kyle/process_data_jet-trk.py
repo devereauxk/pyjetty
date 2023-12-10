@@ -68,51 +68,44 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
         
           obs_label = self.utils.obs_label(trk_thrd, None) 
 
-          if 'EEC_noweight' in observable:
-            name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-            pt_bins = linbins(0,200,200)
-            RL_bins = logbins(1E-4,1,50)
-            h = ROOT.TH2D(name, name, 200, pt_bins, 50, RL_bins)
-            h.GetXaxis().SetTitle('p_{T,ch jet}')
-            h.GetYaxis().SetTitle('R_{L}')
-            setattr(self, name, h)
-
-          if 'EEC_weight2' in observable: # NB: weight power = 2
-            name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-            pt_bins = linbins(0,200,200)
-            RL_bins = logbins(1E-4,1,50)
-            h = ROOT.TH2D(name, name, 200, pt_bins, 50, RL_bins)
-            h.GetXaxis().SetTitle('p_{T,ch jet}')
-            h.GetYaxis().SetTitle('R_{L}')
-            setattr(self, name, h)
-
           if 'jet_pt' in observable:
-            name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-            pt_bins = linbins(0,200,200)
-            h = ROOT.TH1D(name, name, 200, pt_bins)
-            h.GetXaxis().SetTitle('p_{T,ch jet}')
+            name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
+            jetpt_bins = linbins(0,200,200)
+            h = ROOT.TH1D(name, name, 200, jetpt_bins)
+            h.GetXaxis().SetTitle('p_{T jet}')
             h.GetYaxis().SetTitle('Counts')
             setattr(self, name, h)
 
           if observable == "trk_pt":
-            name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-            pt_bins = linbins(0,100,200)
-            h = ROOT.TH1D(name, name, 200, pt_bins)
+            name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
+            trkpt_bins = linbins(0,80,200)
+            h = ROOT.TH1D(name, name, 200, trkpt_bins)
             h.GetXaxis().SetTitle('p_{T,ch trk}')
             h.GetYaxis().SetTitle('Counts')
             setattr(self, name, h)
 
-          if 'jet-trk_shape' in observable or 'jet-trk_ptprofile' in observable:
-            name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
+          if "_RL_TrkPt_JetPt" in observable:
+            name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
             RL_bins = linbins(0,jetR,50)
-            pt_bins = linbins(0,100,200)
-            z_bins = logbins(1.e-5, 1., 80)
-            h = ROOT.TH3D(name, name, 50, RL_bins, 200, pt_bins, 80, z_bins)
+            trkpt_bins = linbins(0,80,200)
+            jetpt_bins = linbins(0,200,200)
+            h = ROOT.TH3D(name, name, 50, RL_bins, 200, trkpt_bins, 200, jetpt_bins)
             h.GetXaxis().SetTitle('#Delta R')
             h.GetYaxis().SetTitle('p_{T,ch trk}')
-            h.GetZaxis().SetTitle('z')
+            h.GetZaxis().SetTitle('p_{T jet}')
             setattr(self, name, h)
 
+          if "_RL_z_JetPt" in observable:
+            name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
+            RL_bins = linbins(0,jetR,50)
+            z_bins = logbins(1.e-5, 1., 200)
+            jetpt_bins = linbins(0,200,200)
+            h = ROOT.TH3D(name, name, 50, RL_bins, 200, z_bins, 200, jetpt_bins)
+            h.GetXaxis().SetTitle('#Delta R')
+            h.GetYaxis().SetTitle('z')
+            h.GetZaxis().SetTitle('p_{T jet}')
+            setattr(self, name, h)
+          
   #---------------------------------------------------------------
   # Calculate pair distance of two fastjet particles
   #---------------------------------------------------------------
@@ -153,14 +146,13 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
         break
       c_select.append(c) # NB: use the break statement since constituents are already sorted
 
-    hname = 'h_{}_JetPt_R{}_{}'
-    new_corr = ecorrel.CorrelatorBuilder(c_select, jet.perp(), 2, 1, dphi_cut, deta_cut)
+    hname = 'h_{}_R{}_{}'
     for observable in self.observable_list:
         
-      if 'jet_pt' in observable:
+      if observable == 'jet_pt_JetPt':
         getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp())
 
-      if observable == "trk_pt":
+      if observable == "trk_pt_TrkPt":
         for c in c_select:
             getattr(self, hname.format(observable, jetR, obs_label)).Fill(c.perp())
             
@@ -169,12 +161,15 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
         
         for c in c_select:
             rl = jet.delta_R(c)
-            
-            if 'shape' in observable:
-                h.Fill(rl, c.perp(), c.perp()/jet.perp())
-                
-            elif 'ptprofile' in observable:
-                h.Fill(rl, c.perp(), c.perp()/jet.perp(), c.perp())
+
+            if observable == "jet-trk_shape_RL_TrkPt_JetPt":
+              h.Fill(rl, c.perp(), jet.perp())
+            elif observable == "jet-trk_ptprofile_RL_TrkPt_JetPt"
+              h.Fill(rl, c.perp(), jet.perp(), c.perp())
+            elif observable == "jet-trk_shape_RL_z_JetPt":
+              h.Fill(rl, c.perp()/jet.perp(), jet.perp())
+            elif observable == "jet-trk_ptprofile_RL_z_JetPt"
+              h.Fill(rl, c.perp()/jet.perp(), jet.perp(), c.perp())
           
 
 ##################################################################

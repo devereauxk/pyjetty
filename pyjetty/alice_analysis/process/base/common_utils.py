@@ -61,9 +61,8 @@ class CommonUtils(common_base.CommonBase):
       return [obs_config_dict[name]['trk_thrd'] for name in obs_subconfig_list]
     elif observable == 'jet_pt':
       return [obs_config_dict[name]['trk_thrd'] for name in obs_subconfig_list]
-    elif observable == 'trk_pt' \
-            or observable == 'jet-trk_shape'\
-            or observable == 'jet-trk_ptprofile':
+    elif observable in ['trk_pt', 'jet-trk_shape', 'jet-trk_ptprofile', 'jet_pt_JetPt', 'trk_pt_TrkPt', 'jet-trk_shape_RL_TrkPt_JetPt', 'jet-trk_shape_RL_z_JetPt', 
+    'jet-trk_ptprofile_RL_TrkPt_JetPt', 'jet-trk_ptprofile_RL_z_JetPt']:
       return [obs_config_dict[name]['trk_thrd'] for name in obs_subconfig_list]
 
     # Else observable not implemented

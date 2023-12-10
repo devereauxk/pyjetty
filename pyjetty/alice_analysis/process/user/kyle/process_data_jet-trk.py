@@ -52,7 +52,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
     # print(sys.modules)
 
     # Initialize base class
-    super(ProcessData_ENC, self).__init__(input_file, config_file, output_dir, debug_level, **kwargs)
+    super(ProcessData_JetTrk, self).__init__(input_file, config_file, output_dir, debug_level, **kwargs)
     
     self.observable = self.observable_list[0]
 
@@ -68,7 +68,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
         
           obs_label = self.utils.obs_label(trk_thrd, None) 
 
-          if 'jet_pt' in observable:
+          if observable == 'jet_pt_JetPt':
             name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
             jetpt_bins = linbins(0,200,200)
             h = ROOT.TH1D(name, name, 200, jetpt_bins)
@@ -76,7 +76,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
             h.GetYaxis().SetTitle('Counts')
             setattr(self, name, h)
 
-          if observable == "trk_pt":
+          if observable == "trk_pt_TrkPt":
             name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
             trkpt_bins = linbins(0,80,200)
             h = ROOT.TH1D(name, name, 200, trkpt_bins)
@@ -164,11 +164,11 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
 
             if observable == "jet-trk_shape_RL_TrkPt_JetPt":
               h.Fill(rl, c.perp(), jet.perp())
-            elif observable == "jet-trk_ptprofile_RL_TrkPt_JetPt"
+            elif observable == "jet-trk_ptprofile_RL_TrkPt_JetPt":
               h.Fill(rl, c.perp(), jet.perp(), c.perp())
             elif observable == "jet-trk_shape_RL_z_JetPt":
               h.Fill(rl, c.perp()/jet.perp(), jet.perp())
-            elif observable == "jet-trk_ptprofile_RL_z_JetPt"
+            elif observable == "jet-trk_ptprofile_RL_z_JetPt":
               h.Fill(rl, c.perp()/jet.perp(), jet.perp(), c.perp())
           
 

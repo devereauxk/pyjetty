@@ -11,7 +11,7 @@
 # The analysis step is intended to run for a single observable block
 
 # process_observables: ['jet_ENC_RL', 'jet_EEC_noweight_RL', 'jet_pair_dist', 'jet_pt']
-process_observables: ['jet_ENC_RL', 'jet_pt', 'jet_EEC_noweight_RL', 'jet_EEC_weight2_RL', 'trk_pt', 'jet-trk_shape', 'jet-trk_ptprofile']
+process_observables: ['jet_ENC_RL', 'jet_pt', 'jet_EEC_noweight_RL', 'jet_EEC_weight2_RL', 'trk_pt', 'jet-trk_shape', 'jet-trk_ptprofile'] # 'preproccesed'
 jetR: [0.4]
 jet_matching_distance: 0.6        # Match jets with deltaR < jet_matching_distance*jetR
 reject_tracks_fraction: 0.0

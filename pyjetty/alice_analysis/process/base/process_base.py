@@ -417,6 +417,8 @@ class ProcessBase(common_base.CommonBase):
     for attr in dir(self):
       
       obj = getattr(self, attr)
+        
+      #print(str(attr) + " " + str(type(obj)))
 
       # Write all ROOT histograms and trees to file
       types = (ROOT.TH1, ROOT.THnBase, ROOT.TTree)
@@ -427,7 +429,7 @@ class ProcessBase(common_base.CommonBase):
     
     if 'preprocessed_np_mc' in dir(self):
         name = 'preprocessed'
-        data_array = getattr(self, 'preprocessed_np_mc')
+        data_array = np.array(getattr(self, 'preprocessed_np_mc'))
         
         print("preprocessed_np_mc DATA ARRAY")
         print(data_array)
@@ -436,7 +438,7 @@ class ProcessBase(common_base.CommonBase):
         fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
-        branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'obs_thrown']
+        branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'pt_hat_weight', 'event_n']
         
         branch_buffers = {}
         for branch_name in branches:
@@ -455,7 +457,7 @@ class ProcessBase(common_base.CommonBase):
         
     if 'preprocessed_np_data' in dir(self):
         name = 'preprocessed'
-        data_array = getattr(self, 'preprocessed_np_data')
+        data_array = np.array(getattr(self, 'preprocessed_np_data'))
         
         print("preprocessed_np_data DATA ARRAY")
         print(data_array)
@@ -464,7 +466,7 @@ class ProcessBase(common_base.CommonBase):
         fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
-        branches = ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt']
+        branches = ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'event_n']
         
         branch_buffers = {}
         for branch_name in branches:

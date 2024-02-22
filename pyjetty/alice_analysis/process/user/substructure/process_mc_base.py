@@ -408,12 +408,11 @@ class ProcessMCBase(process_base.ProcessBase):
     if self.event_number % 1000 == 0: print("analyzing event : " + str(self.event_number))
     
     # match tracks, jet clustering, pairs, pair matching, table write out
-    self.analyze_matched_pairs(fj_particles_det, fj_particles_truth, jetR=0.4)
+    # this is for omnifold output
+    # self.analyze_matched_pairs(fj_particles_det, fj_particles_truth, 0.4)
 
-    # just produce omnifold table 
-    # will be changed into flag later TODO
-    return
-
+    """ For debugging """
+    """
     det_pt_output = "DETECTOR PARTICLES pt: "
     det_id_output = "DETECTOR PARTICLES id: "
     for d_part in fj_particles_det:
@@ -429,8 +428,7 @@ class ProcessMCBase(process_base.ProcessBase):
         truth_id_output += str(d_part.user_index()) + " "
     print(truth_pt_output)
     print(truth_id_output)
-    
-    exit()
+    """
 
     # print('debug5 det parts',fj_particles_det)
     # print('debug5 mcid',particles_mcid_det)
@@ -558,8 +556,8 @@ class ProcessMCBase(process_base.ProcessBase):
 
       # Set jet definition and a jet selector
       jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-      jet_selector_det = fj.SelectorPtMin(5.0) & fj.SelectorAbsRapMax(0.9 - jetR)
-      jet_selector_truth_matched = fj.SelectorPtMin(5.0) & fj.SelectorAbsRapMax(0.9)
+      jet_selector_det = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - jetR)
+      jet_selector_truth_matched = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9)
       if self.debug_level > 2:
         print('')
         print('jet definition is:', jet_def)
@@ -773,10 +771,8 @@ class ProcessMCBase(process_base.ProcessBase):
     for constituent in jet.constituents():
       z = constituent.pt() / jet.pt()
       getattr(self, 'hZ_Truth_R{}'.format(jetR)).Fill(jet.pt(), z)
-          
-    # Fill 2D histogram of truth (pt, obs)
-    hname = 'h_{{}}_JetPt_Truth_R{}_{{}}'.format(jetR)
-    self.fill_unmatched_jet_histograms(jet, jetR, hname)
+
+    self.fill_unmatched_jet_histograms(jet, jetR)
 
   #---------------------------------------------------------------
   # Fill det jet histograms
@@ -788,29 +784,13 @@ class ProcessMCBase(process_base.ProcessBase):
       for constituent in jet.constituents():
         z = constituent.pt() / jet_pt
         getattr(self, 'hZ_Det_R{}'.format(jetR)).Fill(jet_pt, z)
-      
-    # for const in jet.constituents():
-    #   if const.perp()>0.15:
-    #     print('index',const.user_index(),'pt',const.perp())
-    # print('fill det hist')
     
-    # Fill groomed histograms
-    if self.thermal_model:
-      hname = 'h_{{}}_JetPt_R{}_{{}}_Rmax{}'.format(jetR, R_max)
-      self.fill_unmatched_jet_histograms(jet, jetR, hname, rho_bge)
-
-    if self.is_pp:
-      hname = 'h_{{}}_JetPt_R{}_{{}}'.format(jetR)
-      self.fill_unmatched_jet_histograms(jet, jetR, hname, rho_bge)
-
-    if self.do_rho_subtraction:
-      hname = 'h_{{}}_JetPt_R{}_{{}}'.format(jetR)
-      self.fill_unmatched_jet_histograms(jet, jetR, hname, rho_bge)
+    self.fill_unmatched_jet_histograms(jet, jetR, rho_bge)
   
   #---------------------------------------------------------------
   # This function is called once for each jet
   #---------------------------------------------------------------
-  def fill_unmatched_jet_histograms(self, jet, jetR, hname, rho_bge = 0):
+  def fill_unmatched_jet_histograms(self, jet, jetR, rho_bge = 0):
 
     # Loop through each jet subconfiguration (i.e. subobservable / grooming setting)
     observable = self.observable_list[0]
@@ -835,7 +815,7 @@ class ProcessMCBase(process_base.ProcessBase):
         jet_pt = jet.perp()
 
       # Call user function to fill histograms
-      self.fill_observable_histograms(hname, jet, jet_groomed_lund, jetR, obs_setting,
+      self.fill_observable_histograms(jet, jet_groomed_lund, jetR, obs_setting,
                                       grooming_setting, obs_label, jet_pt)
   
   #---------------------------------------------------------------
@@ -978,8 +958,10 @@ class ProcessMCBase(process_base.ProcessBase):
   # This function is called once for each jet subconfiguration
   # You must implement this
   #---------------------------------------------------------------
-  def fill_observable_histograms(self, hname, jet, jet_groomed_lund, jetR, obs_setting,
+  def fill_observable_histograms(self, jet, jet_groomed_lund, jetR, obs_setting,
                                  grooming_setting, obs_label, jet_pt_ungroomed):
+    
+    # note to self: removed hname arguement since it's terrible abstraction
 
     raise NotImplementedError('You must implement fill_observable_histograms()!')
 

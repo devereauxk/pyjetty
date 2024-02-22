@@ -78,7 +78,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
 
           if observable == "trk_pt_TrkPt":
             name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
-            trkpt_bins = linbins(0,80,200)
+            trkpt_bins = linbins(0,20,200)
             h = ROOT.TH1D(name, name, 200, trkpt_bins)
             h.GetXaxis().SetTitle('p_{T,ch trk}')
             h.GetYaxis().SetTitle('Counts')
@@ -87,7 +87,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
           if "_RL_TrkPt_JetPt" in observable:
             name = 'h_{}_R{}_{}'.format(observable, jetR, obs_label)
             RL_bins = linbins(0,jetR,50)
-            trkpt_bins = linbins(0,80,200)
+            trkpt_bins = linbins(0,20,200)
             jetpt_bins = linbins(0,200,200)
             h = ROOT.TH3D(name, name, 50, RL_bins, 200, trkpt_bins, 200, jetpt_bins)
             h.GetXaxis().SetTitle('#Delta R')

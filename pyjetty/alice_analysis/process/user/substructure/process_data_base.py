@@ -180,6 +180,7 @@ class ProcessDataBase(process_base.ProcessBase):
     
     if not self.is_pp:
       self.hRho = ROOT.TH1F('hRho', 'hRho', 100, 0., 300.)
+      self.hSigma = ROOT.TH1F('hSigma', 'hSigma', 100, 0., 100.)
       self.c_factor = ROOT.TH1F('c_factor', 'c_factor', 100, 0., 1.)
 
   #---------------------------------------------------------------
@@ -244,11 +245,9 @@ class ProcessDataBase(process_base.ProcessBase):
       # Keep track of whether to fill R-independent histograms
       self.fill_R_indep_hists = (jetR == self.jetR_list[0])
 
-      # Set jet definition and a jet selector3
-      #jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
+      # Set jet definition and a jet selector
       jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
       jet_selector = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - jetR)
-      # print(jet_def)
       if self.debug_level > 2:
         print('jet definition is:', jet_def)
         print('jet selector is:', jet_selector,'\n')
@@ -265,110 +264,128 @@ class ProcessDataBase(process_base.ProcessBase):
         
       else:
 
-        for i, R_max in enumerate(self.max_distance):
+        if not self.do_rho_subtraction:
+          return
+        
+        # jet finding using KT, just for rho calculation
+        jet_def_rho = fj.JetDefinition(fj.kt_algorithm, jetR)
+        jet_selector_rho = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - jetR)
 
-          # DEBUGGING
+        cs_rho = fj.ClusterSequenceArea(fj_particles, jet_def_rho, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+        jets_rho = fj.sorted_by_pt(cs_rho.inclusive_jets())
+        jets_selected_rho = jet_selector_rho(jets_rho)
 
-          fj_pts = []
-          _ = [fj_pts.append(part.pt()) for part in fj_particles]
-          # print(pd.DataFrame(fj_pts).describe())
-  
-          cs = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+        bge = fj.GridMedianBackgroundEstimator(0.9, 0.4) # max eta, grid size
+        bge.set_particles(fj_particles)
+        rho = bge.rho()
+        sigma = bge.sigma()
+
+        # print(" RHO THIS EVENT : {}, +/- {}".format(rho, sigma)) 
+
+        # calculate occupancy factor: summed jet areas with no ghosts / total detector area
+        c_num = 0
+        for jet in jets_selected_rho:
+          if not jet.is_pure_ghost():
+            c_num += jet.area()
+
+        A_acc = 0.9 * 2 * np.pi * 2
+        c_factor = c_num / A_acc
+        # print("c factor = {} / {} = {} ".format(c_num, A_acc, c_facter))
+
+        getattr(self, 'hRho').Fill(rho)
+        getattr(self, "hSigma").Fill(sigma)
+        getattr(self, "c_factor").Fill(c_factor)
+
+        pts = []
+        areas = []
+        corrected_pts = []
+        # corrected_pts should have tje same order as jets_selected_rho, don't reorder either array
+        for jet in jets_selected_rho:
+          # (jet pT, jet area, jet pT sub)
+
+          if jet.is_pure_ghost():
+            continue
+
+          pts.append(jet.perp())
+          areas.append(jet.area())
+
+          # KD: perform rho subtraction, stores subtracted jet_pt as jet_pt_corrected
+          # jet fj object still has original pT if jet.perp() called
+          if rho > 0:
+            jet_pt_corrected = jet.perp() - rho*jet.area()*c_factor
+
+          corrected_pts.append(jet_pt_corrected)
+
+        pts = np.array(pts)
+        areas = np.array(areas)
+        pts_areas = pts / areas
+
+        rho_by_hand = np.median(pts_areas)
+        # print("rho calculated by hand : {}".format(rho_by_hand))
+
+
+        # jet finding using ANITKT, for main jet finding and analysis
+        jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
+        jet_selector = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - jetR)
+
+        cs = fj.ClusterSequence(fj_particles, jet_def) # choice to use constituent subtraction here
+        jets = fj.sorted_by_pt(cs.inclusive_jets())
+        jets_selected = jet_selector(jets)
+
+        for jet in jets_selected:
+          # find corresponding kt jet, to find the corresponding corrected jet pt from the rho subtraction
+          delta_Rs = [jet.delta_R(candidate) for candidate in jets_selected_rho]
+          closest_index = np.argmin(delta_Rs)
+          #print("{}, accepted? {}".format(delta_Rs[closest_index], delta_Rs[closest_index] < 0.6))
+          if delta_Rs[closest_index] > 0.1: #TODO 0.6 is what i found for mc processing?
+            continue
+
+          jet_pt_corrected = corrected_pts[closest_index]
+
+          if jet_pt_corrected <= 10:
+            continue
+
+          #print("{} \t->\t {}".format(jet.perp(), jet_pt_corrected))
+
+          # Call user function to fill histograms
+          self.fill_jet_histograms(jet, jetR, jet_pt_corrected, self.obs_setting, self.obs_label)
+          
+          self.analyze_perp_cone(fj_particles, jet, jetR, jet_pt_corrected)
+
+        # TODO do cs just for jet finiding and then recluster?
+        # TODO idk what R_max is, used in cs?
+
+        """
+
+        if self.do_rho_subtraction:
+          cs_unsub = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+          jets_unsub = fj.sorted_by_pt(cs_unsub.inclusive_jets())
+          jets_selected_unsub = jet_selector(jets_unsub)
+
+          self.analyze_jets(jets_selected_unsub, jetR, rho_bge = rho) # changing rho to zero here changes trk pt spectrum drastically
+          if self.do_perpcone:
+            self.analyze_perp_cones(fj_particles, jets_selected_unsub, jetR, rho_bge = rho)
+
+        elif self.do_raw:
+          cs = fj.ClusterSequence(fj_particles, jet_def)
+          jets = fj.sorted_by_pt(cs.inclusive_jets())
+          jets_selected = jet_selector(jets)
+        
+          self.analyze_jets(jets_selected, jetR)
+          if self.do_perpcone:
+            self.analyze_perp_cones(fj_particles, jets_selected, jetR)
+
+        else:
+          # Do jet finding (re-do each time, to make sure matching info gets reset)
+          cs = fj.ClusterSequence(fj_particles_subtracted[i], jet_def) # TODO : not sure whether to enable the area or not
           jets = fj.sorted_by_pt(cs.inclusive_jets())
           jets_selected = jet_selector(jets)
 
-          bge = fj.GridMedianBackgroundEstimator(0.9, 0.4) # max eta, grid size
-          bge.set_particles(fj_particles)
-          rho = bge.rho()
-          sigma = bge.sigma()
+          self.analyze_jets(jets_selected, jetR)
+          if self.do_perpcone:
+            self.analyze_perp_cones(fj_particles, jets_selected, jetR)
 
-          # print(" RHO THIS EVENT : {}, +/- {}".format(rho, sigma)) 
-
-          # calculate occupancy factor: summed jet areas with no ghosts / total detector area
-          c_factor = 0
-          for jet in jets_selected:
-            if not jet.is_pure_ghost():
-              c_factor += jet.area()
-
-          A_acc = 0.9 * 2 * np.pi * 2
-          # print("c factor = {} / {} = {} ".format(c_factor, A_acc, c_factor/A_acc))
-          c_factor = c_factor / A_acc
-
-          pts = []
-          areas = []
-          for jet in jets_selected:
-            # (jet pT, jet area, jet pT sub)
-
-            if jet.is_pure_ghost():
-              continue
-
-            pts.append(jet.perp())
-            areas.append(jet.area())
-
-            # Fill base histograms
-            # KD: perform rho subtraction, stores subtracted jet_pt as jet_pt_corrected
-            # jet fj object still has original pT if jet.perp() called
-            if self.do_rho_subtraction and rho > 0:
-              jet_pt_corrected = jet.perp() - rho*jet.area()*c_factor
-            else:
-              jet_pt_corrected = jet.perp()
-
-            if jet_pt_corrected <= 10:
-              continue
-
-            # print("{} \t->\t {}, {}".format(jet.perp(), jet_pt_corrected, jet.area()))
-
-            # Call user function to fill histograms
-            self.fill_jet_histograms(jet, jetR, jet_pt_corrected, self.obs_setting, self.obs_label)
-            
-            self.analyze_perp_cone(fj_particles, jet, jetR, jet_pt_corrected)
-
-          pts = np.array(pts)
-          areas = np.array(areas)
-          pts_areas = pts / areas
-
-          rho_by_hand = np.median(pts_areas)
-          # print("rho calculated by hand : {}".format(rho_by_hand))
-
-          # TODO what if jet clustering uses CS, but then then that cone is reclusted using all event particles
-          # TODO redo jet clustering using anti-kt for real analysis after rho found
-          # TODO idk what R_max is
-
-          getattr(self, 'hRho').Fill(rho)
-          getattr(self, "c_factor").Fill(c_factor)
-          
-
-          """
-
-          if self.do_rho_subtraction:
-            cs_unsub = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
-            jets_unsub = fj.sorted_by_pt(cs_unsub.inclusive_jets())
-            jets_selected_unsub = jet_selector(jets_unsub)
-
-            self.analyze_jets(jets_selected_unsub, jetR, rho_bge = rho) # changing rho to zero here changes trk pt spectrum drastically
-            if self.do_perpcone:
-              self.analyze_perp_cones(fj_particles, jets_selected_unsub, jetR, rho_bge = rho)
-
-          elif self.do_raw:
-            cs = fj.ClusterSequence(fj_particles, jet_def)
-            jets = fj.sorted_by_pt(cs.inclusive_jets())
-            jets_selected = jet_selector(jets)
-          
-            self.analyze_jets(jets_selected, jetR)
-            if self.do_perpcone:
-              self.analyze_perp_cones(fj_particles, jets_selected, jetR)
-
-          else:
-            # Do jet finding (re-do each time, to make sure matching info gets reset)
-            cs = fj.ClusterSequence(fj_particles_subtracted[i], jet_def) # TODO : not sure whether to enable the area or not
-            jets = fj.sorted_by_pt(cs.inclusive_jets())
-            jets_selected = jet_selector(jets)
-
-            self.analyze_jets(jets_selected, jetR)
-            if self.do_perpcone:
-              self.analyze_perp_cones(fj_particles, jets_selected, jetR)
-
-          """
+        """
 
   def find_parts_around_jet(self, parts, jet, cone_R):
     # select particles around jet axis
@@ -391,7 +408,7 @@ class ProcessDataBase(process_base.ProcessBase):
 
     # purposfully use UNCORRECTED jet pt here since should have exact same jet def as original, just rotated
     perp_jet1 = fj.PseudoJet()
-    perp_jet1.reset_PtYPhiM(jet.perp(), jet.eta(), jet.phi() + np.pi/2, jet.m())
+    perp_jet1.reset_PtYPhiM(jet.perp(), jet.eta(), jet.phi(), jet.m())
     perp_jet2 = fj.PseudoJet()
     perp_jet2.reset_PtYPhiM(jet.perp(), jet.eta(), jet.phi() - np.pi/2, jet.m())
 

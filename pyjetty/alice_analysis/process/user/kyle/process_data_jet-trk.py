@@ -105,37 +105,75 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
             h.GetYaxis().SetTitle('z')
             h.GetZaxis().SetTitle('p_{T jet}')
             setattr(self, name, h)
-          
-  #---------------------------------------------------------------
-  # Calculate pair distance of two fastjet particles
-  #---------------------------------------------------------------
-  def calculate_distance(self, p0, p1):   
-    dphiabs = math.fabs(p0.phi() - p1.phi())
-    dphi = dphiabs
 
-    if dphiabs > math.pi:
-      dphi = 2*math.pi - dphiabs
+          if self.do_perpcone:
 
-    deta = p0.eta() - p1.eta()
-    return math.sqrt(deta*deta + dphi*dphi)
+            if observable == 'jet_pt_JetPt':
+              name = 'h_perpcone_{}_R{}_{}'.format(observable, jetR, obs_label)
+              jetpt_bins = linbins(0,200,200)
+              h = ROOT.TH1D(name, name, 200, jetpt_bins)
+              h.GetXaxis().SetTitle('p_{T jet}')
+              h.GetYaxis().SetTitle('Counts')
+              setattr(self, name, h)
 
-  def is_same_charge(self, corr_builder, ipoint, constituents, index):
-    part1 = corr_builder.correlator(ipoint).indices1()[index]
-    part2 = corr_builder.correlator(ipoint).indices2()[index]
-    q1 = constituents[part1].python_info().charge
-    q2 = constituents[part2].python_info().charge
+            if observable == "trk_pt_TrkPt":
+              name = 'h_perpcone_{}_R{}_{}'.format(observable, jetR, obs_label)
+              trkpt_bins = linbins(0,20,200)
+              h = ROOT.TH1D(name, name, 200, trkpt_bins)
+              h.GetXaxis().SetTitle('p_{T,ch trk}')
+              h.GetYaxis().SetTitle('Counts')
+              setattr(self, name, h)
 
-    if q1*q2 > 0:
-      return True
-    else:
-      return False
+            if "_RL_TrkPt_JetPt" in observable:
+              name = 'h_perpcone_{}_R{}_{}'.format(observable, jetR, obs_label)
+              RL_bins = linbins(0,jetR,50)
+              trkpt_bins = linbins(0,20,200)
+              jetpt_bins = linbins(0,200,200)
+              h = ROOT.TH3D(name, name, 50, RL_bins, 200, trkpt_bins, 200, jetpt_bins)
+              h.GetXaxis().SetTitle('#Delta R')
+              h.GetYaxis().SetTitle('p_{T,ch trk}')
+              h.GetZaxis().SetTitle('p_{T jet}')
+              setattr(self, name, h)
+
+            if "_RL_z_JetPt" in observable:
+              name = 'h_perpcone_{}_R{}_{}'.format(observable, jetR, obs_label)
+              RL_bins = linbins(0,jetR,50)
+              z_bins = logbins(1.e-5, 1., 200)
+              jetpt_bins = linbins(0,200,200)
+              h = ROOT.TH3D(name, name, 50, RL_bins, 200, z_bins, 200, jetpt_bins)
+              h.GetXaxis().SetTitle('#Delta R')
+              h.GetYaxis().SetTitle('z')
+              h.GetZaxis().SetTitle('p_{T jet}')
+              setattr(self, name, h)
+
     
+  def fill_jettrk_histograms(self, hname, c_select, jet, jet_pt_corrected, jetR):
+    # fills histgrams and thats it, make sure constituents are properlly selected beforehand
+    # uses jet_pt_corrected instead if jet.perp() for all filled jet pt histogram information
     
+    for observable in self.observable_list:
+            
+      if 'jet-trk' in observable:
+        h = getattr(self, hname.format(observable, jetR))
+        
+        for c in c_select:
+            rl = jet.delta_R(c)
+
+            if observable == "jet-trk_shape_RL_TrkPt_JetPt":
+              h.Fill(rl, c.perp(), jet_pt_corrected)
+            elif observable == "jet-trk_ptprofile_RL_TrkPt_JetPt":
+              h.Fill(rl, c.perp(), jet_pt_corrected, c.perp())
+            elif observable == "jet-trk_shape_RL_z_JetPt":
+              h.Fill(rl, c.perp()/jet_pt_corrected, jet_pt_corrected)
+            elif observable == "jet-trk_ptprofile_RL_z_JetPt":
+              h.Fill(rl, c.perp()/jet_pt_corrected, jet_pt_corrected, c.perp())
+
   #---------------------------------------------------------------
   # This function is called once for each jet subconfiguration
   #---------------------------------------------------------------
-  def fill_jet_histograms(self, jet, jet_groomed_lund, jetR, obs_setting, grooming_setting,
-                          obs_label, jet_pt_ungroomed, suffix):
+  def fill_jet_histograms(self, jet, jetR, jet_pt_corrected, obs_setting, obs_label):
+
+    hname = 'h_{}_R{}_' + str(obs_label)
 
     constituents = fj.sorted_by_pt(jet.constituents())
     c_select = fj.vectorPJ()
@@ -146,31 +184,38 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
         break
       c_select.append(c) # NB: use the break statement since constituents are already sorted
 
-    hname = 'h_{}_R{}_{}'
     for observable in self.observable_list:
         
       if observable == 'jet_pt_JetPt':
-        getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp())
+        getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet_pt_corrected)
+        # print("{} \t->\t {}".format(jet.perp(), jet_pt))
 
       if observable == "trk_pt_TrkPt":
         for c in c_select:
             getattr(self, hname.format(observable, jetR, obs_label)).Fill(c.perp())
-            
-      if 'jet-trk' in observable:
-        h = getattr(self, hname.format(observable, jetR, obs_label))
-        
-        for c in c_select:
-            rl = jet.delta_R(c)
 
-            if observable == "jet-trk_shape_RL_TrkPt_JetPt":
-              h.Fill(rl, c.perp(), jet.perp())
-            elif observable == "jet-trk_ptprofile_RL_TrkPt_JetPt":
-              h.Fill(rl, c.perp(), jet.perp(), c.perp())
-            elif observable == "jet-trk_shape_RL_z_JetPt":
-              h.Fill(rl, c.perp()/jet.perp(), jet.perp())
-            elif observable == "jet-trk_ptprofile_RL_z_JetPt":
-              h.Fill(rl, c.perp()/jet.perp(), jet.perp(), c.perp())
+    self.fill_jettrk_histograms(hname, c_select, jet, jet_pt_corrected, jetR)
           
+  #---------------------------------------------------------------
+  # This function is called twice for each jet subconfiguration
+  # once for each of the two perp cones generated for a single sig cone
+  #---------------------------------------------------------------
+  def fill_perp_cone_histograms(self, cone_parts, cone_R, jet, jet_pt_corrected, obs_setting, obs_label):
+    # assumes every part in cone_parts is from background (in some cases sig jet is included)
+
+    trk_thrd = obs_setting
+    c_select_perp = fj.vectorPJ()
+
+    cone_parts_sorted = fj.sorted_by_pt(cone_parts)
+    for part in cone_parts_sorted:
+      if part.pt() < trk_thrd:
+        break
+      c_select_perp.append(part)
+
+    hname = 'h_perpcone_{}_R{}_' + str(obs_label)
+
+    self.fill_jettrk_histograms(hname, c_select_perp, jet, jet_pt_corrected, cone_R) # use signal jet pt here
+    
 
 ##################################################################
 if __name__ == '__main__':

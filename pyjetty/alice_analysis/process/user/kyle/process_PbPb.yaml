@@ -22,22 +22,24 @@ eta_max: 0.9
 debug_level: 0
 dry_run: False
 fast_simulation: False
-ENC_fastsim: False # only set to True when fast_simulation is set to True
-ENC_pair_cut: False
 
-do_rho_subtraction: False #True
-do_perpcone: False #True
+do_raw: False
+do_rho_subtraction: True
+do_perpcone: True
 
+# keep the below no matter whether cs is turned on or off
 constituent_subtractor:
-  max_distance: [0.1]
+  # for rho subtraction
+  max_eta: 0.9
+  bge_rho_grid_size: 0.2
+  
+  # for constituent subtraction
+  max_distance: [0.3]
   main_R_max: 0.1
   alpha: 0
-  max_eta: 0.9
-  bge_rho_grid_size: 1.0
+  
   max_pt_correct: 100
   ghost_area: 0.01
-
-emb_file_list: '/global/cfs/cdirs/alice/wenqing/ENC/files_LHC18qr.txt'
 
 # Observable block
 jet_pt_JetPt:

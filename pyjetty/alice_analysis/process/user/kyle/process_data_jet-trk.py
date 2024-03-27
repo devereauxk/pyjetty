@@ -61,7 +61,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
   # Initialize histograms
   #---------------------------------------------------------------
   def initialize_user_output_objects(self):
-        
+
     for jetR in self.jetR_list:
       for observable in self.observable_list:
         for trk_thrd in self.obs_settings[observable]:
@@ -145,20 +145,26 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
               h.GetYaxis().SetTitle('z')
               h.GetZaxis().SetTitle('p_{T jet}')
               setattr(self, name, h)
-
     
-  def fill_jettrk_histograms(self, hname, c_select, jet, jet_pt_corrected, jetR):
+  def fill_jettrk_histograms(self, hname, c_select, jet, jet_pt_corrected, jetR, is_perpcone=False):
     # fills histgrams and thats it, make sure constituents are properlly selected beforehand
     # uses jet_pt_corrected instead if jet.perp() for all filled jet pt histogram information
     
     for observable in self.observable_list:
-            
-      if 'jet-trk' in observable:
-        h = getattr(self, hname.format(observable, jetR))
-        
-        for c in c_select:
-            rl = jet.delta_R(c)
+      
+      for c in c_select:
+          rl = self.calculate_distance(jet, c)
 
+          # fill 3D data for unfolding
+          if observable == "raw_cone" and is_perpcone:
+            getattr(self, "raw_cone").Fill(rl, c.perp(), jet_pt_corrected)
+          elif observable == "raw":
+            getattr(self, "raw").Fill(rl, c.perp(), jet_pt_corrected)
+
+          if 'jet-trk' in observable:
+            h = getattr(self, hname.format(observable, jetR))
+
+            # fill other hists
             if observable == "jet-trk_shape_RL_TrkPt_JetPt":
               h.Fill(rl, c.perp(), jet_pt_corrected)
             elif observable == "jet-trk_ptprofile_RL_TrkPt_JetPt":
@@ -172,6 +178,9 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
   # This function is called once for each jet subconfiguration
   #---------------------------------------------------------------
   def fill_jet_histograms(self, jet, jetR, jet_pt_corrected, obs_setting, obs_label):
+
+    # fill 1D jet pT data for unfolding
+    getattr(self, 'raw1D').Fill(jet_pt_corrected)
 
     hname = 'h_{}_R{}_' + str(obs_label)
 
@@ -214,7 +223,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
 
     hname = 'h_perpcone_{}_R{}_' + str(obs_label)
 
-    self.fill_jettrk_histograms(hname, c_select_perp, jet, jet_pt_corrected, cone_R) # use signal jet pt here
+    self.fill_jettrk_histograms(hname, c_select_perp, jet, jet_pt_corrected, cone_R, is_perpcone=True) # use signal jet pt here
     
 
 ##################################################################

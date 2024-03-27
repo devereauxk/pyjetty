@@ -69,76 +69,6 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
       h = []
       setattr(self, name, h)
 
-    for jetR in self.jetR_list:
-      for observable in self.observable_list:
-        for trk_thrd in self.obs_settings[observable]:
-        
-          obs_label = self.utils.obs_label(trk_thrd, None) 
-          if self.is_pp:
-              # Init ENC histograms
-              if 'ENC' in observable:
-                for ipoint in range(2, 3):
-                    name = 'h_{}_JetPt_R{}_{}'.format(observable + str(ipoint), jetR, trk_thrd)
-                    pt_bins = linbins(0,200,200)
-                    RL_bins = logbins(1E-4,1,50)
-                    h = ROOT.TH2D(name, name, 200, pt_bins, 50, RL_bins)
-                    h.GetXaxis().SetTitle('p_{T,ch jet}')
-                    h.GetYaxis().SetTitle('R_{L}')
-                    setattr(self, name, h)
-
-                    name = 'h_{}Pt_JetPt_R{}_{}'.format(observable + str(ipoint), jetR, trk_thrd)
-                    pt_bins = linbins(0,200,200)
-                    ptRL_bins = logbins(1E-3,1E2,60)
-                    h = ROOT.TH2D(name, name, 200, pt_bins, 60, ptRL_bins)
-                    h.GetXaxis().SetTitle('p_{T,ch jet}')
-                    h.GetYaxis().SetTitle('p_{T,ch jet}R_{L}') # NB: y axis scaled by jet pt (applied jet by jet)
-                    setattr(self, name, h)
-
-              if 'EEC_noweight' in observable:
-                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-                pt_bins = linbins(0,200,200)
-                RL_bins = logbins(1E-4,1,50)
-                h = ROOT.TH2D(name, name, 200, pt_bins, 50, RL_bins)
-                h.GetXaxis().SetTitle('p_{T,ch jet}')
-                h.GetYaxis().SetTitle('R_{L}')
-                setattr(self, name, h)
-
-              if 'EEC_weight2' in observable: # NB: weight power = 2
-                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-                pt_bins = linbins(0,200,200)
-                RL_bins = logbins(1E-4,1,50)
-                h = ROOT.TH2D(name, name, 200, pt_bins, 50, RL_bins)
-                h.GetXaxis().SetTitle('p_{T,ch jet}')
-                h.GetYaxis().SetTitle('R_{L}')
-                setattr(self, name, h)
-
-              if 'jet_pt' in observable:
-                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-                pt_bins = linbins(0,200,200)
-                h = ROOT.TH1D(name, name, 200, pt_bins)
-                h.GetXaxis().SetTitle('p_{T,ch jet}')
-                h.GetYaxis().SetTitle('Counts')
-                setattr(self, name, h)
-            
-              if observable == "trk_pt":
-                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-                pt_bins = linbins(0,100,200)
-                h = ROOT.TH1D(name, name, 200, pt_bins)
-                h.GetXaxis().SetTitle('p_{T,ch trk}')
-                h.GetYaxis().SetTitle('Counts')
-                setattr(self, name, h)
-                
-              if 'jet-trk_shape' in observable or 'jet-trk_ptprofile' in observable:
-                name = 'h_{}_JetPt_R{}_{}'.format(observable, jetR, obs_label)
-                RL_bins = linbins(0,jetR,50)
-                pt_bins = linbins(0,100,200)
-                z_bins = logbins(1.e-5, 1., 80)
-                h = ROOT.TH3D(name, name, 50, RL_bins, 200, pt_bins, 80, z_bins)
-                h.GetXaxis().SetTitle('#Delta R')
-                h.GetYaxis().SetTitle('p_{T,ch trk}')
-                h.GetZaxis().SetTitle('z')
-                setattr(self, name, h)
-
   #---------------------------------------------------------------
   # Calculate pair distance of two fastjet particles
   #---------------------------------------------------------------
@@ -169,6 +99,7 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
   def fill_jet_histograms(self, jet, jet_groomed_lund, jetR, obs_setting, grooming_setting,
                           obs_label, jet_pt_ungroomed, suffix):
 
+    """
     constituents = fj.sorted_by_pt(jet.constituents())
     c_select = fj.vectorPJ()
     trk_thrd = obs_setting
@@ -184,57 +115,14 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
     else:
       dphi_cut = -9999
       deta_cut = -9999
+    """
 
-    hname = 'h_{}_JetPt_R{}_{}'
-    new_corr = ecorrel.CorrelatorBuilder(c_select, jet.perp(), 2, 1, dphi_cut, deta_cut)
     for observable in self.observable_list:
-      if 'ENC' in observable or 'EEC_noweight' in observable or 'EEC_weight2' in observable:
-        for ipoint in range(2, 3):
-          for index in range(new_corr.correlator(ipoint).rs().size()):
-
-            # processing only like-sign pairs when self.ENC_pair_like is on
-            if self.ENC_pair_like and (not self.is_same_charge(new_corr, ipoint, c_select, index)):
-              continue
-
-            # processing only unlike-sign pairs when self.ENC_pair_unlike is on
-            if self.ENC_pair_unlike and self.is_same_charge(new_corr, ipoint, c_select, index):
-              continue
-
-            if 'ENC' in observable:
-              getattr(self, hname.format(observable + str(ipoint), jetR, obs_label)).Fill(jet.perp(), new_corr.correlator(ipoint).rs()[index], new_corr.correlator(ipoint).weights()[index])
-              getattr(self, hname.format(observable + str(ipoint) + 'Pt', jetR, obs_label)).Fill(jet.perp(), jet.perp()*new_corr.correlator(ipoint).rs()[index], new_corr.correlator(ipoint).weights()[index]) # NB: fill pt*RL
-
-            if ipoint==2 and 'EEC_noweight' in observable:
-              getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp(), new_corr.correlator(ipoint).rs()[index])
-
-            if ipoint==2 and 'EEC_weight2' in observable:
-              getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp(), new_corr.correlator(ipoint).rs()[index], pow(new_corr.correlator(ipoint).weights()[index],2))
-
-      if 'jet_pt' in observable:
-        getattr(self, hname.format(observable, jetR, obs_label)).Fill(jet.perp())
-
-      if observable == "trk_pt":
-        for c in c_select:
-            getattr(self, hname.format(observable, jetR, obs_label)).Fill(c.perp())
-            
-      if 'jet-trk' in observable:
-        h = getattr(self, hname.format(observable, jetR, obs_label))
-        
-        for c in c_select:
-            rl = jet.delta_R(c)
-            
-            if 'shape' in observable:
-                h.Fill(rl, c.perp(), c.perp()/jet.perp())
-                
-            elif 'ptprofile' in observable:
-                h.Fill(rl, c.perp(), c.perp()/jet.perp(), c.perp())
-
+      
       if 'preprocessed' in observable:
         self.fill_jet_tables(jet)
 
   def fill_jet_tables(self, jet, ipoint=2):
-    constituents = fj.sorted_by_pt(jet.constituents())
-    
     jet_pt = jet.perp()
 
     #push constutents to a vector in python

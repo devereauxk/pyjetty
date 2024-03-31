@@ -64,10 +64,9 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
         
     # python array with the format (faster than np array!)
     # ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'event_n']
-    if 'proprocessed' in self.observable_list:
-      name = 'preprocessed_np_data'
-      h = []
-      setattr(self, name, h)
+    name = 'preprocessed_np_data_eec'
+    h = []
+    setattr(self, name, h)
 
   #---------------------------------------------------------------
   # Calculate pair distance of two fastjet particles
@@ -81,46 +80,14 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
 
     deta = p0.eta() - p1.eta()
     return math.sqrt(deta*deta + dphi*dphi)
-
-  def is_same_charge(self, corr_builder, ipoint, constituents, index):
-    part1 = corr_builder.correlator(ipoint).indices1()[index]
-    part2 = corr_builder.correlator(ipoint).indices2()[index]
-    q1 = constituents[part1].python_info().charge
-    q2 = constituents[part2].python_info().charge
-
-    if q1*q2 > 0:
-      return True
-    else:
-      return False
     
   #---------------------------------------------------------------
   # This function is called once for each jet subconfiguration
   #---------------------------------------------------------------
-  def fill_jet_histograms(self, jet, jet_groomed_lund, jetR, obs_setting, grooming_setting,
-                          obs_label, jet_pt_ungroomed, suffix):
+  def fill_jet_histograms(self, jet, jetR, jet_pt_corrected, obs_setting, obs_label):
 
-    """
-    constituents = fj.sorted_by_pt(jet.constituents())
-    c_select = fj.vectorPJ()
-    trk_thrd = obs_setting
-
-    for c in constituents:
-      if c.pt() < trk_thrd:
-        break
-      c_select.append(c) # NB: use the break statement since constituents are already sorted
-
-    if self.ENC_pair_cut:
-      dphi_cut = -9999 # means no dphi cut
-      deta_cut = 0.008
-    else:
-      dphi_cut = -9999
-      deta_cut = -9999
-    """
-
-    for observable in self.observable_list:
-      
-      if 'preprocessed' in observable:
-        self.fill_jet_tables(jet)
+    self.fill_jet_tables(jet)
+    
 
   def fill_jet_tables(self, jet, ipoint=2):
     jet_pt = jet.perp()
@@ -141,7 +108,7 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
     EEC_weights = EEC_cb.weights() # cb.correlator(npoint).weights() constains list of weights
     EEC_rs = EEC_cb.rs() # cb.correlator(npoint).rs() contains list of RL
     
-    name = 'preprocessed_np_data'
+    name = 'preprocessed_np_data_eec'
     for i in range(len(EEC_rs)):
         new_row = [EEC_weights[i], EEC_rs[i], jet_pt, self.event_number]
         getattr(self, name).append(new_row)

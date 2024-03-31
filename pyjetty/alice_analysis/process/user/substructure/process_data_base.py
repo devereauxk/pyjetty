@@ -240,147 +240,155 @@ class ProcessDataBase(process_base.ProcessBase):
     if self.debug_level > 1:
       print('-------------------------------------------------')
       print('event {}'.format(self.event_number))
+
+    if self.event_number % 1000 == 0: print("analyzing event : " + str(self.event_number))
     
+    # various checks
     if len(fj_particles) > 1:
       if np.abs(fj_particles[0].pt() - fj_particles[1].pt()) <  1e-10:
         print('WARNING: Duplicate particles may be present')
         print([p.user_index() for p in fj_particles])
         print([p.pt() for p in fj_particles])
+
+    #handle case with no truth particles
+    if type(fj_particles) is float:
+        print("EVENT WITH NO PARTICLES!!!")
+        return
+    
+    ##### PARTICLE PT CUT > 0.15
+    fj_particles_pass = fj.vectorPJ()
+    for part in fj_particles:
+      if part.perp() > 0.15:
+        fj_particles_pass.push_back(part)
+    fj_particles = fj_particles_pass
   
-    # Perform constituent subtraction for each R_max (do this once, for all jetR)
-    if not self.is_pp:
-      fj_particles_subtracted = [self.constituent_subtractor[i].process_event(fj_particles) for i, R_max in enumerate(self.max_distance)]
-    
-      #print("len fj parts: {}, len subed: {}".format(len(fj_particles), len(fj_particles_subtracted[0])))
 
-    # Loop through jetR, and process event for each R
-    for jetR in self.jetR_list:
-    
-      # Keep track of whether to fill R-independent histograms
-      self.fill_R_indep_hists = (jetR == self.jetR_list[0])
+    ############################# JET RECO ################################
+    jetR = 0.4   
 
-      # Set jet definition and a jet selector
-      # jet finding using ANITKT, for main jet finding and analysis
-      jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-      jet_selector = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
-      if self.debug_level > 2:
+    # Set jet definition and a jet selector
+    jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
+    jet_selector = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
+
+    if self.debug_level > 2:
         print('jet definition is:', jet_def)
         print('jet selector is:', jet_selector,'\n')
+
+    # Analyze
+    if self.is_pp:
+
+      cs = fj.ClusterSequence(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+      jets_selected = fj.sorted_by_pt(jet_selector(cs.inclusive_jets()))
+
+      # KD: EEC preprocessed output
+      # self.analyze_matched_pairs(det_jets, truth_jets)
+
+      # KD: jet-trk preprocessed output
+      self.analyze_jets(jets, jetR)
+
+    else:
+
+      if not self.do_rho_subtraction:
+        return
+
+      # embeding random 60GeV particle with unique user_index=-3
+      random_Y = np.random.uniform(-0.9, 0.9)
+      random_phi = np.random.uniform(0, 2*np.pi)
+      probe = fj.PseudoJet()
+      probe.reset_PtYPhiM(60, random_Y, random_phi, 1)
+      probe.set_user_index(-3)
+      fj_particles.push_back(probe)
+
+      # rho calculation
+      bge = fj.GridMedianBackgroundEstimator(0.9, 0.4) # max eta, grid size
+      bge.set_particles(fj_particles)
+      rho = bge.rho()
+      sigma = bge.sigma()
+
+      # print(" RHO THIS EVENT : {}, +/- {}".format(rho, sigma)) 
+
+      getattr(self, "hRho").Fill(rho)
+      getattr(self, "hSigma").Fill(sigma)
+
+      cs = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts)) # choice to use constituent subtraction here
+      jets = fj.sorted_by_pt(cs.inclusive_jets())
+      jets_selected = jet_selector(jets)
+
+      for jet in jets_selected:
+
+        leading_pt = np.max([c.perp() for c in jet.constituents()])
+
+        # jet area and leading particle pt cut
+        if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
+          continue
+
+        jet_pt_corrected = jet.perp() - rho*jet.area()
+        jetR_eff = np.sqrt(jet.area() / np.pi)
+
+        if jet_pt_corrected <= 10:
+          continue
+
+        # handle jets that contain the embeded particle, fill hists, and skip analysis for this jet
+        embeded_index = np.where(np.array([c.user_index() for c in jet.constituents()]) == -3)[0]
+        if len(embeded_index) != 0:
+          embeded_part = jet.constituents()[embeded_index[0]]
+          delta_pt = jet_pt_corrected - embeded_part.perp()
+          getattr(self, "hDelta_pt").Fill(delta_pt)
+          continue
+
+        # print("{} \t->\t {}, {}, R={}".format(jet.perp(), jet_pt_corrected, jet.area(), np.sqrt(jet.area() / np.pi)))
+
+        # Call user function to fill histograms
+        self.fill_jet_histograms(jet, jetR, jet_pt_corrected, self.obs_setting, self.obs_label)
+
+        #perp_jet1 = fj.PseudoJet()
+        #perp_jet1.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi(), jet.m())
+        # make sure you use rapidity and NOT eta!
+        #print("{}, {}, {}, {}, {}".format(jet.perp(), jet.eta(), jet.phi(), jet.m()))
+        #print("{}, {}, {}, {}".format(perp_jet1.perp(), perp_jet1.eta(), perp_jet1.phi(), perp_jet1.m()))
+
+        """
+        regrouped_parts = self.find_parts_around_jet(fj_particles, jet, jetR_eff) # jet R
+        hname = 'h_{}_R{}_' + str(self.obs_label)
+
+        c_select = fj.vectorPJ()
+        for c in regrouped_parts:
+          if c.pt() < 0.15:
+            break
+          c_select.append(c) # NB: use the break statement since constituents are already sorted
+
+        self.fill_jettrk_histograms(hname, c_select, jet, jet_pt_corrected, jetR)
+        """
+
+        perp_jet1 = fj.PseudoJet()
+        perp_jet1.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi() + np.pi/2, jet.m())
+        parts_in_perpcone1 = self.find_parts_around_jet(fj_particles, perp_jet1, jetR_eff) # jet R
+
+        perp_jet2 = fj.PseudoJet()
+        perp_jet2.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi() - np.pi/2, jet.m())
+        parts_in_perpcone2 = self.find_parts_around_jet(fj_particles, perp_jet2, jetR_eff) # jet R
+
+        self.fill_perp_cone_histograms(parts_in_perpcone1, jetR, perp_jet1, jet_pt_corrected, \
+                                self.obs_setting, self.obs_label)
         
-      # Analyze
-      if self.is_pp:
-      
-        # Do jet finding
-        cs = fj.ClusterSequence(fj_particles, jet_def)
-        jets = fj.sorted_by_pt(cs.inclusive_jets())
-        jets_selected = jet_selector(jets)
-      
-        for jet in jets_selected:
-          self.fill_jet_histograms(jet, jetR, jet.perp(), self.obs_setting, self.obs_label)
+        self.fill_perp_cone_histograms(parts_in_perpcone2, jetR, perp_jet2, jet_pt_corrected, \
+                                self.obs_setting, self.obs_label)
+
+      # TODO do cs just for jet finiding and then recluster?
+      # TODO idk what R_max is, used in cs?
         
-      else:
+      # TODO
+      # from ALICE jet spectra in PbPb 5.02 ....
+      # jet area cut, usually cut on area of jets that are A > 0.6 pi R*2
+      # leading particle cut, only jets with leading pt >5 GeV, no jets with leading pt above 100 GeV
+      # if weird, use the lower cuts that this paper uses
+      # no c_factor
+      # for jet eta cut, do like 5% of jet radius more so there is a little more padding
+      # embed 60 GeV part somewhere in acceptance area - rho * area - part_pt
 
-        if not self.do_rho_subtraction:
-          return
+      # implement the imbeded 60 GeV part to test its delta pT with the rho subtraction
 
-        # embeding random 60GeV particle with unique user_index=-3
-        random_Y = np.random.uniform(-0.9, 0.9)
-        random_phi = np.random.uniform(0, 2*np.pi)
-        probe = fj.PseudoJet()
-        probe.reset_PtYPhiM(60, random_Y, random_phi, 1)
-        probe.set_user_index(-3)
-        fj_particles.push_back(probe)
-
-        # rho calculation
-        bge = fj.GridMedianBackgroundEstimator(0.9, 0.4) # max eta, grid size
-        bge.set_particles(fj_particles)
-        rho = bge.rho()
-        sigma = bge.sigma()
-
-        # print(" RHO THIS EVENT : {}, +/- {}".format(rho, sigma)) 
-
-        getattr(self, "hRho").Fill(rho)
-        getattr(self, "hSigma").Fill(sigma)
-
-        cs = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts)) # choice to use constituent subtraction here
-        jets = fj.sorted_by_pt(cs.inclusive_jets())
-        jets_selected = jet_selector(jets)
-
-        for jet in jets_selected:
-
-          leading_pt = np.max([c.perp() for c in jet.constituents()])
-
-          # jet area and leading particle pt cut
-          if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
-            continue
-
-          jet_pt_corrected = jet.perp() - rho*jet.area()
-          jetR_eff = np.sqrt(jet.area() / np.pi)
-
-          if jet_pt_corrected <= 10:
-            continue
-
-          # handle jets that contain the embeded particle, fill hists, and skip analysis for this jet
-          embeded_index = np.where(np.array([c.user_index() for c in jet.constituents()]) == -3)[0]
-          if len(embeded_index) != 0:
-            embeded_part = jet.constituents()[embeded_index[0]]
-            delta_pt = jet_pt_corrected - embeded_part.perp()
-            getattr(self, "hDelta_pt").Fill(delta_pt)
-            continue
-
-          # print("{} \t->\t {}, {}, R={}".format(jet.perp(), jet_pt_corrected, jet.area(), np.sqrt(jet.area() / np.pi)))
-
-          # Call user function to fill histograms
-          self.fill_jet_histograms(jet, jetR, jet_pt_corrected, self.obs_setting, self.obs_label)
-
-          #perp_jet1 = fj.PseudoJet()
-          #perp_jet1.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi(), jet.m())
-          # make sure you use rapidity and NOT eta!
-          #print("{}, {}, {}, {}, {}".format(jet.perp(), jet.eta(), jet.phi(), jet.m()))
-          #print("{}, {}, {}, {}".format(perp_jet1.perp(), perp_jet1.eta(), perp_jet1.phi(), perp_jet1.m()))
-
-          """
-          regrouped_parts = self.find_parts_around_jet(fj_particles, jet, jetR_eff) # jet R
-          hname = 'h_{}_R{}_' + str(self.obs_label)
-
-          c_select = fj.vectorPJ()
-          for c in regrouped_parts:
-            if c.pt() < 0.15:
-              break
-            c_select.append(c) # NB: use the break statement since constituents are already sorted
-
-          self.fill_jettrk_histograms(hname, c_select, jet, jet_pt_corrected, jetR)
-          """
-
-          perp_jet1 = fj.PseudoJet()
-          perp_jet1.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi() + np.pi/2, jet.m())
-          parts_in_perpcone1 = self.find_parts_around_jet(fj_particles, perp_jet1, jetR_eff) # jet R
-
-          perp_jet2 = fj.PseudoJet()
-          perp_jet2.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi() - np.pi/2, jet.m())
-          parts_in_perpcone2 = self.find_parts_around_jet(fj_particles, perp_jet2, jetR_eff) # jet R
-
-          self.fill_perp_cone_histograms(parts_in_perpcone1, jetR, perp_jet1, jet_pt_corrected, \
-                                  self.obs_setting, self.obs_label)
-          
-          self.fill_perp_cone_histograms(parts_in_perpcone2, jetR, perp_jet2, jet_pt_corrected, \
-                                  self.obs_setting, self.obs_label)
-
-        # TODO do cs just for jet finiding and then recluster?
-        # TODO idk what R_max is, used in cs?
-          
-        # TODO
-        # from ALICE jet spectra in PbPb 5.02 ....
-        # jet area cut, usually cut on area of jets that are A > 0.6 pi R*2
-        # leading particle cut, only jets with leading pt >5 GeV, no jets with leading pt above 100 GeV
-        # if weird, use the lower cuts that this paper uses
-        # no c_factor
-        # for jet eta cut, do like 5% of jet radius more so there is a little more padding
-        # embed 60 GeV part somewhere in acceptance area - rho * area - part_pt
-
-        # implement the imbeded 60 GeV part to test its delta pT with the rho subtraction
-
-        # plot jet area hist
+      # plot jet area hist
 
 
   def find_parts_around_jet(self, parts, jet, cone_R):

@@ -13,7 +13,9 @@
 # process_observables: ['jet_ENC_RL', 'jet_EEC_noweight_RL', 'jet_pair_dist', 'jet_pt']
 process_observables: ['jet_pt_JetPt', 'trk_pt_TrkPt', 'jet-trk_shape_RL_TrkPt_JetPt', 'jet-trk_shape_RL_z_JetPt', 
     'jet-trk_ptprofile_RL_TrkPt_JetPt', 'jet-trk_ptprofile_RL_z_JetPt']
-is_pp: True
+is_pp: False
+emb_file_list: '/global/cfs/cdirs/alice/wenqing/ENC/files_LHC18qr.txt'
+
 reject_tracks_fraction: 0.0
 debug_level: 0
 fast_simulation: False

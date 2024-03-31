@@ -46,6 +46,7 @@ def logbins(xmin, xmax, nbins):
   arr = array.array('f', lspace)
   return arr
 
+
 ################################################################
 class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
 
@@ -68,7 +69,7 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
   #---------------------------------------------------------------
   # Initialize histograms
   #---------------------------------------------------------------
-  def initialize_user_output_objects_R(self, jetR):
+  def initialize_user_output_objects(self):
 
     # this is the only thing produced! contains all relevant det and truth-level info to fill all histograms
 
@@ -83,7 +84,7 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
   # This function is called per jet subconfigration 
   # Fill matched jet histograms
   #---------------------------------------------------------------
-  def fill_matched_jet_histograms(self, det_jet_matched, truth_jet_matched):
+  def fill_matched_jet_histograms(self, det_jet_matched, truth_jet_matched, det_pt_corrected):
 
     # assumes det and truth parts are matched beforehand:
     # matching particles are given matching user_index s
@@ -102,15 +103,19 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
 
     for t_part in c_truth:
 
+      truth_R = self.calculate_distance(t_part, truth_jet_matched)
+
       match_found = False
       for d_part in c_det:
-        
-        # if truth and det part are matched, fill row of preprocessed with 
-        if t_part.user_index() == d_part.user_index():
-          truth_R = self.calculate_distance(t_part, truth_jet_matched)
-          det_R = self.calculate_distance(d_part, det_jet_matched)
 
-          getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), det_R, d_part.perp(), det_jet_matched.perp(), self.pt_hat, self.event_number])
+        det_R = self.calculate_distance(d_part, det_jet_matched)
+        
+        # if truth and det part are matched, and (if embedded event) det particle is not from the background
+        # fill row of preprocessed with both info
+        if t_part.user_index() == d_part.user_index() and not d_part.user_index() < 0:
+
+          getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), \
+                                      det_R, d_part.perp(), det_pt_corrected, self.pt_hat, self.event_number])
 
           match_found = True 
           break
@@ -121,7 +126,7 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
         getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), dummy_val, dummy_val, dummy_val, self.pt_hat, self.event_number])
 
 
-  def analyze_matched_pairs(fj_particles_det, fj_particles_truth, jetR):
+  def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth):
     return
 
 ##################################################################

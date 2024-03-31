@@ -71,7 +71,6 @@ class ProcessBase(common_base.CommonBase):
     else:
       self.event_number_max = sys.maxsize
       
-    self.jetR_list = config['jetR']
     self.debug_level = config['debug_level']
 
     # Check if constituent subtractor is included, and initialize it if so
@@ -424,18 +423,12 @@ class ProcessBase(common_base.CommonBase):
       types = (ROOT.TH1, ROOT.THnBase, ROOT.TTree)
       if isinstance(obj, types):
         obj.Write()
-        
-    fout.Close()
     
     if 'preprocessed_np_mc_eec' in dir(self):
         name = 'preprocessed_eec'
         data_array = np.array(getattr(self, 'preprocessed_np_mc_eec'))
         
         print("preprocessed_np_mc_eec DATA ARRAY")
-        print(data_array)
-        
-        outputfilename = os.path.join(self.output_dir, 'preprocessed_mc_eec.root')
-        fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
         branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'pt_hat_weight', 'event_n']
@@ -460,10 +453,6 @@ class ProcessBase(common_base.CommonBase):
         data_array = np.array(getattr(self, 'preprocessed_np_data_eec'))
         
         print("preprocessed_np_data_eec DATA ARRAY")
-        print(data_array)
-        
-        outputfilename = os.path.join(self.output_dir, 'preprocessed_data_eec.root')
-        fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
         branches = ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'event_n']
@@ -480,18 +469,12 @@ class ProcessBase(common_base.CommonBase):
             tree.Fill()
         
         tree.Write()
-        fout.Write()
-        fout.Close()
 
     if 'preprocessed_np_mc_jettrk' in dir(self):
         name = 'preprocessed_jettrk'
         data_array = np.array(getattr(self, 'preprocessed_np_mc_jettrk'))
         
         print("preprocessed_np_mc_jettrk DATA ARRAY")
-        print(data_array)
-        
-        outputfilename = os.path.join(self.output_dir, 'preprocessed_mc_jettrk.root')
-        fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
         branches = ['gen_R', 'gen_trk_pt', 'gen_jet_pt', 'obs_R', 'obs_trk_pt', 'obs_jet_pt', 'pt_hat_weight', 'event_n']
@@ -508,18 +491,12 @@ class ProcessBase(common_base.CommonBase):
             tree.Fill()
         
         tree.Write()
-        fout.Write()
-        fout.Close()
 
     if 'preprocessed_np_data_jettrk' in dir(self):
         name = 'preprocessed_jrttrk'
         data_array = np.array(getattr(self, 'preprocessed_np_data_jettrk'))
         
         print("preprocessed_np_data_jettrk DATA ARRAY")
-        print(data_array)
-        
-        outputfilename = os.path.join(self.output_dir, 'preprocessed_data_jettrk.root')
-        fout = ROOT.TFile(outputfilename, 'recreate')
         
         tree = ROOT.TTree(name, name)
         branches = ['obs_R', 'obs_trk_pt', 'obs_jet_pt', 'event_n']
@@ -536,8 +513,8 @@ class ProcessBase(common_base.CommonBase):
             tree.Fill()
         
         tree.Write()
-        fout.Write()
-        fout.Close()
+
+    fout.Close()
         
 
   #---------------------------------------------------------------

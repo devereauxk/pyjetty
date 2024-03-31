@@ -62,6 +62,10 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
   #---------------------------------------------------------------
   def initialize_user_output_objects(self):
 
+    name = 'preprocessed_np_data_jettrk'
+    h = []
+    setattr(self, name, h)
+
     for jetR in self.jetR_list:
       for observable in self.observable_list:
         for trk_thrd in self.obs_settings[observable]:
@@ -146,7 +150,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
               h.GetZaxis().SetTitle('p_{T jet}')
               setattr(self, name, h)
     
-  def fill_jettrk_histograms(self, hname, c_select, jet, jet_pt_corrected, jetR, is_perpcone=False):
+  def fill_jettrk_histograms(self, hname, c_select, jet, jet_pt_corrected, jetR):
     # fills histgrams and thats it, make sure constituents are properlly selected beforehand
     # uses jet_pt_corrected instead if jet.perp() for all filled jet pt histogram information
     
@@ -155,11 +159,8 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
       for c in c_select:
           rl = self.calculate_distance(jet, c)
 
-          # fill 3D data for unfolding
-          if observable == "raw_cone" and is_perpcone:
-            getattr(self, "raw_cone").Fill(rl, c.perp(), jet_pt_corrected)
-          elif observable == "raw":
-            getattr(self, "raw").Fill(rl, c.perp(), jet_pt_corrected)
+          name = 'preprocessed_np_data_jettrk'
+          getattr(self, name).append([rl, c.perp(), jet_pt_corrected, self.event_number])
 
           if 'jet-trk' in observable:
             h = getattr(self, hname.format(observable, jetR))
@@ -178,9 +179,6 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
   # This function is called once for each jet subconfiguration
   #---------------------------------------------------------------
   def fill_jet_histograms(self, jet, jetR, jet_pt_corrected, obs_setting, obs_label):
-
-    # fill 1D jet pT data for unfolding
-    getattr(self, 'raw1D').Fill(jet_pt_corrected)
 
     hname = 'h_{}_R{}_' + str(obs_label)
 
@@ -209,7 +207,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
   # This function is called twice for each jet subconfiguration
   # once for each of the two perp cones generated for a single sig cone
   #---------------------------------------------------------------
-  def fill_perp_cone_histograms(self, cone_parts, cone_R, jet, jet_pt_corrected, obs_setting, obs_label):
+  def fill_perp_cone_histograms(self, cone_parts, jetR, jet, jet_pt_corrected, obs_setting, obs_label):
     # assumes every part in cone_parts is from background (in some cases sig jet is included)
 
     trk_thrd = obs_setting
@@ -223,7 +221,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
 
     hname = 'h_perpcone_{}_R{}_' + str(obs_label)
 
-    self.fill_jettrk_histograms(hname, c_select_perp, jet, jet_pt_corrected, cone_R, is_perpcone=True) # use signal jet pt here
+    self.fill_jettrk_histograms(hname, c_select_perp, jet, jet_pt_corrected, jetR) # use signal jet pt here
     
 
 ##################################################################

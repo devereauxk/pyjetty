@@ -76,20 +76,6 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     # Initialize base class
     super(ProcessMC_ENC, self).__init__(input_file, config_file, output_dir, debug_level, **kwargs)
     
-    self.observable = self.observable_list[0]
-
-    self.pair_eff_file = ROOT.TFile.Open("/global/cfs/cdirs/alice/kdevero/mypyjetty/pyjetty/pyjetty/alice_analysis/process/user/wenqing/PairEff.root","READ")
-    # self.dpbin = 5
-    # self.dp_lo = [0, 0.1, 0.2, 0.4, 1]
-    # self.dp_hi = [0.1, 0.2, 0.4, 1, 2]
-    self.dpbin = 10
-    self.dp_lo = [0, 0.02, 0.06, 0.1, 0.14, 0.2, 0.3, 0.4, 0.6, 1]
-    self.dp_hi = [0.02, 0.06, 0.1, 0.14, 0.2, 0.3, 0.4, 0.6, 1, 2]
-    self.h1d_eff_vs_dR_in_dq_over_p = []
-    for idp in range(self.dpbin):
-        hname = 'h1d_eff_vs_dR_in_dq_over_p_{}'.format(idp)
-        self.h1d_eff_vs_dR_in_dq_over_p.append( ROOT.TH1D(self.pair_eff_file.Get(hname)) )
-    
     # find pt_hat for set of events in input_file, assumes all events in input_file are in the same pt_hat bin
     self.pt_hat_bin = int(input_file.split('/')[len(input_file.split('/'))-4]) # depends on exact format of input_file name
     with open("/global/cfs/projectdirs/alice/alicepro/hiccup/rstorage/alice/data/LHC18b8/scaleFactors.yaml", 'r') as stream:
@@ -114,7 +100,7 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
   #---------------------------------------------------------------
   # Initialize histograms
   #---------------------------------------------------------------
-  def initialize_user_output_objects_R(self, jetR):
+  def initialize_user_output_objects(self):
     
     # python array with the format (faster than np array!)
     # ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'pt_hat']
@@ -123,7 +109,7 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     setattr(self, name, h)
 
 
-  def analyze_matched_pairs(self, det_jets, truth_jets, jetR=0.4):
+  def analyze_matched_pairs(self, det_jets, truth_jets):
     # assumes det and truth parts are matched beforehand:
     # matching particles are given matching user_index s
     # if some det or truth part does not have a match, it is given a unique index

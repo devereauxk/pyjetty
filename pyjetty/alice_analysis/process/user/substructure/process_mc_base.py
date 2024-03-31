@@ -29,7 +29,7 @@ import time
 # Data analysis and plotting
 import pandas
 import numpy as np
-from array import *
+import array
 import ROOT
 import yaml
 import random
@@ -51,6 +51,16 @@ from pyjetty.mputils.csubtractor import CEventSubtractor
 
 # Prevent ROOT from stealing focus when plotting
 ROOT.gROOT.SetBatch(True)
+
+def linbins(xmin, xmax, nbins):
+  lspace = np.linspace(xmin, xmax, nbins+1)
+  arr = array.array('f', lspace)
+  return arr
+
+def logbins(xmin, xmax, nbins):
+  lspace = np.logspace(np.log10(xmin), np.log10(xmax), nbins+1)
+  arr = array.array('f', lspace)
+  return arr
 
 ################################################################
 class ProcessMCBase(process_base.ProcessBase):
@@ -86,18 +96,6 @@ class ProcessMCBase(process_base.ProcessBase):
           self.ENC_fastsim = False
     else: # if not fast simulation, set ENC_fastsim flag to False
       self.ENC_fastsim = False    
-    if 'ENC_pair_cut' in config:
-        self.ENC_pair_cut = config['ENC_pair_cut']
-    else:
-        self.ENC_pair_cut = False
-    if 'ENC_pair_like' in config:
-        self.ENC_pair_like = config['ENC_pair_like']
-    else:
-        self.ENC_pair_like = False
-    if 'ENC_pair_unlike' in config:
-        self.ENC_pair_unlike = config['ENC_pair_unlike']
-    else:
-        self.ENC_pair_unlike = False
     if 'jetscape' in config:
         self.jetscape = config['jetscape']
     else:
@@ -110,23 +108,17 @@ class ProcessMCBase(process_base.ProcessBase):
       self.matching_systematic = config['matching_systematic']
     else:
       self.matching_systematic = False
-    self.dry_run = config['dry_run']
     self.skip_deltapt_RC_histograms = True
     self.fill_RM_histograms = True
     
-    self.jet_matching_distance = config['jet_matching_distance']
     self.reject_tracks_fraction = config['reject_tracks_fraction']
     if 'mc_fraction_threshold' in config:
       self.mc_fraction_threshold = config['mc_fraction_threshold']
-    if 'do_rho_subtraction' in config:
-      self.do_rho_subtraction = config['do_rho_subtraction']
-    
-    if self.do_constituent_subtraction:
-        self.is_pp = False
-        self.emb_file_list = config['emb_file_list']
-        self.main_R_max = config['constituent_subtractor']['main_R_max']
-    else:
-        self.is_pp = True
+
+    self.is_pp = config['is_pp']
+
+    if not self.is_pp:
+      self.emb_file_list = config['emb_file_list']
         
     if 'thermal_model' in config:
       self.thermal_model = True
@@ -276,6 +268,9 @@ class ProcessMCBase(process_base.ProcessBase):
   # Initialize histograms
   #---------------------------------------------------------------
   def initialize_output_objects(self):
+
+    # Initialize user-specific histograms
+    self.initialize_user_output_objects()
     
     self.hNevents = ROOT.TH1F('hNevents', 'hNevents', 2, -0.5, 1.5)
     self.hNevents.Fill(1, self.nEvents_det)
@@ -292,6 +287,48 @@ class ProcessMCBase(process_base.ProcessBase):
       name = 'hN_MeanPt'
       h = ROOT.TH2F(name, name, 200, 0, 5000, 200, 0., 2.)
       setattr(self, name, h)
+
+    # delta-eta-delta-phi distribution for truth and matched reco particles
+    name = 'h2d_matched_part_deta_pt'
+    eta_bins = linbins(-0.05, 0.05, 100)
+    pt_bins = linbins(0, 10, 100)
+    h = ROOT.TH2D(name, name, 100, eta_bins, 100, pt_bins)
+    h.GetXaxis().SetTitle('#Delta#eta')
+    h.GetYaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    name = 'h2d_matched_part_dphi_pt'
+    phi_bins = linbins(-0.02, 0.02, 100)
+    pt_bins = linbins(0, 10, 100)
+    h = ROOT.TH2D(name, name, 100, phi_bins, 100, pt_bins)
+    h.GetXaxis().SetTitle('#Delta#phi')
+    h.GetYaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    # matching efficiency of reco tracks wrt truth tracks, as a function of pt
+    name = 'h1d_truth_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    name = 'h1d_det_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    name = 'h1d_truth_matched_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
+
+    name = 'h1d_det_matched_part_pt'
+    pt_bins = linbins(0,10,200)
+    h = ROOT.TH1D(name, name, 200, pt_bins)
+    h.GetXaxis().SetTitle('p_{T}')
+    setattr(self, name, h)
 
   #---------------------------------------------------------------
   # Calculate pair distance of two fastjet particles
@@ -310,10 +347,6 @@ class ProcessMCBase(process_base.ProcessBase):
   # Main function to loop through and analyze events
   #---------------------------------------------------------------
   def analyze_events(self):
-    
-    # Fill track histograms
-    if not self.dry_run:
-      [self.fill_track_histograms(fj_particles_det) for fj_particles_det in self.df_fjparticles['fj_particles_det']]
     
     fj.ClusterSequence.print_banner()
     print()
@@ -387,25 +420,30 @@ class ProcessMCBase(process_base.ProcessBase):
     if type(fj_particles_det) is float:
         print("EVENT WITH NO DET PARTICLES!!!")
         fj_particles_det = []
-        
-    for det_part in fj_particles_det:
-        hname = 'h1d_det_part_pt'
-        getattr(self, hname).Fill(det_part.perp())
 
     ##### CHARGE PARTICLE AND PARTICLE PT > 0.15 CUT
+        # ALSO RESET ALL USER INDICIES to 0
     fj_particles_det_pass = fj.vectorPJ()
     for part in fj_particles_det:
       if part.perp() > 0.15:
-        if not self.ENC_fast_sim or (self.ENC_fastsim and part.python_info().charge != 0):
+        if not self.ENC_fastsim or (self.ENC_fastsim and part.python_info().charge != 0):
+          part.set_user_index(0)
           fj_particles_det_pass.push_back(part)
     fj_particles_det = fj_particles_det_pass
 
     fj_particles_truth_pass = fj.vectorPJ()
     for part in fj_particles_truth:
       if part.perp() > 0.15:
-        if not self.ENC_fast_sim or (self.ENC_fastsim and part.python_info().charge != 0):
+        if not self.ENC_fastsim or (self.ENC_fastsim and part.python_info().charge != 0):
+          part.set_user_index(0)
           fj_particles_truth_pass.push_back(part)
     fj_particles_truth = fj_particles_truth_pass
+
+
+    for det_part in fj_particles_det:
+        hname = 'h1d_det_part_pt'
+        getattr(self, hname).Fill(det_part.perp())
+
 
     ############################# TRACK MATCHING ################################
     # set all indicies to dummy index
@@ -416,7 +454,7 @@ class ProcessMCBase(process_base.ProcessBase):
       fj_particles_det[i].set_user_index(dummy_index)
     
     # perform matching, give matches the same user_index
-    index = 0
+    index = 1
     det_used = []
     # note: CANNOT loop like this: <for truth_part in fj_particles_truth:>
     for itruth in range(len(fj_particles_truth)):
@@ -475,6 +513,24 @@ class ProcessMCBase(process_base.ProcessBase):
         part.set_user_index(index)
         index += 1
 
+    ######################### CONSTRUCT ENBEDDED EVENT ##########################
+    # positive index = signal particle
+    # negative index = bkgd particle
+    index = -1
+    if not self.is_pp:
+      # If Pb-Pb, construct embedded event (do this once, for all jetR)
+      # For thermal model, look at previous commits
+
+      # Main case: Get Pb-Pb event and embed it into the det-level particle list
+      fj_particles_hybrid = self.process_io_emb.load_event()
+
+      # give each particle new unique user_index
+      for part in fj_particles_hybrid:
+        part.set_user_index(i)
+        i -= 1
+          
+      # Form the combined det-level event
+      _ = [fj_particles_hybrid.push_back(p) for p in fj_particles_det]
 
     """ For debugging """
     """
@@ -501,155 +557,117 @@ class ProcessMCBase(process_base.ProcessBase):
     # Set jet definition and a jet selector
     jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
     jet_selector_det = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
-    jet_selector_truth_matched = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9)
+    jet_selector_truth = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9)
 
     if self.debug_level > 2:
       print('')
       print('jet definition is:', jet_def)
       print('jet selector for det-level is:', jet_selector_det)
-      print('jet selector for truth-level matches is:', jet_selector_truth_matched)
-    
-    
-    # Analyze
+      print('jet selector for truth-level matches is:', jet_selector_truth)
+
+    # cluster truth jets
+    cs_truth = fj.ClusterSequence(fj_particles_truth, jet_def)
+    truth_jets = fj.sorted_by_pt(jet_selector_truth(cs_truth.inclusive_jets()))
+
+    # KD: no cuts should be applied on the truth jets! only det and hybrid jets
+    # this includes no leading track or jet area cuts
+
+    # cluster detector/hybrid jets
     if self.is_pp:
-      cs_truth = fj.ClusterSequence(fj_particles_truth, jet_def)
-      truth_jets = fj.sorted_by_pt(jet_selector_det(cs_truth.inclusive_jets()))
       
-      cs_det = fj.ClusterSequence(fj_particles_det, jet_def)
+      cs_det = fj.ClusterSequenceArea(fj_particles_det, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
       det_jets = fj.sorted_by_pt(jet_selector_det(cs_det.inclusive_jets()))
 
       # TODO make sure user info still exists after jet clustering
 
       # KD: EEC preprocessed output
-      self.analyze_matched_pairs(det_jets, truth_jets, jetR)
+      self.analyze_matched_pairs(det_jets, truth_jets)
 
       # KD: jet-trk preprocessed output
-
-      self.analyze_jets(det_jets, truth_jets)
+      self.analyze_jets(det_jets, truth_jets, jetR)
       
     else:
 
-      # TODO
-      return
-
-      # If Pb-Pb, construct embedded event (do this once, for all jetR)
-
-      # If thermal model, generate a thermal event and add it to the det-level particle list
-      if self.thermal_model:
-        fj_particles_combined_beforeCS = self.thermal_generator.load_event()
-        
-        # Form the combined det-level event
-        # The pp-det tracks are each stored with a unique user_index >= 0
-        #   (same index in fj_particles_combined and fj_particles_det -- which will be used in prong-matching)
-        # The thermal tracks are each stored with a unique user_index < 0
-        [fj_particles_combined_beforeCS.push_back(p) for p in fj_particles_det]
-
-      # Main case: Get Pb-Pb event and embed it into the det-level particle list
-      else:
-        fj_particles_combined_beforeCS = self.process_io_emb.load_event()
-            
-        # Form the combined det-level event
-        # The pp-det tracks are each stored with a unique user_index >= 0
-        #   (same index in fj_particles_combined and fj_particles_det -- which will be used in prong-matching)
-        # The Pb-Pb tracks are each stored with a unique user_index < 0
-        [fj_particles_combined_beforeCS.push_back(p) for p in fj_particles_det]
-        
-      # Perform constituent subtraction for each R_max
-      fj_particles_combined = self.constituent_subtractor.process_event(fj_particles_combined_beforeCS)
-
+      # cluster embedded jets and jet pT correction
       
-      if self.debug_level > 3:
-        print([p.user_index() for p in fj_particles_truth])
-        print([p.pt() for p in fj_particles_truth])
-        print([p.user_index() for p in fj_particles_det])
-        print([p.pt() for p in fj_particles_det])
-        print([p.user_index() for p in fj_particles_combined_beforeCS])
-        print([p.pt() for p in fj_particles_combined_beforeCS])
-    
-      cs_det = fj.ClusterSequenceArea(fj_particles_det, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts)) # choice to use constituent subtraction here
-      jets = fj.sorted_by_pt(cs.inclusive_jets())
-      jets_selected = jet_selector(jets)
-        
-        # Perform constituent subtraction on det-level, if applicable
-        self.fill_background_histograms(fj_particles_combined_beforeCS, fj_particles_combined, jetR)
-        rho = self.constituent_subtractor.bge_rho.rho() 
-    
-        # Do jet finding (re-do each time, to make sure matching info gets reset)
-        cs_det = fj.ClusterSequence(fj_particles_det, jet_def)
-        jets_det_pp = fj.sorted_by_pt(cs_det.inclusive_jets())
-        jets_det_pp_selected = jet_selector_det(jets_det_pp)
-        
-        cs_truth = fj.ClusterSequence(fj_particles_truth, jet_def)
-        jets_truth = fj.sorted_by_pt(cs_truth.inclusive_jets())
-        jets_truth_selected = jet_selector_det(jets_truth)
-        jets_truth_selected_matched = jet_selector_truth_matched(jets_truth)
-        
-        cs_combined = fj.ClusterSequence(fj_particles_combined, jet_def)
-        jets_combined = fj.sorted_by_pt(cs_combined.inclusive_jets())
-        jets_combined_selected = jet_selector_det(jets_combined)
+      # rho calculation
+      bge = fj.GridMedianBackgroundEstimator(0.9, 0.4) # max eta, grid size
+      bge.set_particles(fj_particles_hybrid)
+      rho = bge.rho()
+      sigma = bge.sigma()
 
-        if self.do_rho_subtraction:
-          cs_combined_beforeCS = fj.ClusterSequenceArea(fj_particles_combined_beforeCS, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
-          jets_combined_beforeCS = fj.sorted_by_pt(cs_combined_beforeCS.inclusive_jets())
-          jets_combined_selected_beforeCS = jet_selector_det(jets_combined_beforeCS)
-          self.analyze_jets(jets_combined_selected_beforeCS, jets_truth_selected, jets_truth_selected_matched, jetR,
-                          jets_det_pp_selected = jets_det_pp_selected, R_max = jetR,
-                          fj_particles_det_holes = fj_particles_det_holes,
-                          fj_particles_truth_holes = fj_particles_truth_holes, rho_bge = rho)
-        else:
-          self.analyze_jets(jets_combined_selected, jets_truth_selected, jets_truth_selected_matched, jetR,
-                          jets_det_pp_selected = jets_det_pp_selected, R_max = jetR,
-                          fj_particles_det_holes = fj_particles_det_holes,
-                          fj_particles_truth_holes = fj_particles_truth_holes, rho_bge = 0)
+      getattr(self, "hRho").Fill(rho)
+      getattr(self, "hSigma").Fill(sigma)
+      
+      cs_hybrid = fj.ClusterSequenceArea(fj_particles_hybrid, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts)) # choice to use constituent subtraction here
+      hybrid_jets = fj.sorted_by_pt(jet_selector_det(cs_hybrid.inclusive_jets()))
+
+      self.analyze_jets(hybrid_jets, truth_jets, jetR, rho=rho)
+
 
   #---------------------------------------------------------------
   # Analyze jets of a given event.
   #---------------------------------------------------------------
-  def analyze_jets(self, jets_det_selected, jets_truth_selected, jetR, rho_bge = 0):
+  def analyze_jets(self, jets_det, jets_truth, jetR, rho = 0):
   
-    # TODO make sure this jet matching makes sense
     # TODO implement embedding support
+
+    # TODO implement leading particle/jet area cuts here or above? - Mateusz will know
+
+    ###### APPLY LEADING PARTICLE and JET AREA CUTS ######
+    # applied only to det/hybrid jets, not to truth jets
+    jets_det_selected = fj.vectorPJ()
+    jets_pt_selected = []
+    for jet in jets_det:
+
+      leading_pt = np.max([c.perp() for c in jet.constituents()])
+
+      # jet area and leading particle pt cut
+      if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
+        continue
+
+      jet_pt_corrected = jet.perp() - rho*jet.area()
+      # jetR_eff = np.sqrt(jet.area() / np.pi)
+
+      if jet_pt_corrected <= 10:
+        continue
+
+      jets_pt_selected.append(jet_pt_corrected)
+      jets_det_selected.push_back(jet)
 
     if self.debug_level > 1:
       print('Number of det-level jets: {}'.format(len(jets_det_selected)))
-
-    # if rho subtraction gives corrected pT < 5, cut jet out (improves efficiency)
-    jets_det_reselected = fj.vectorPJ()
-    if self.do_rho_subtraction and rho_bge > 0:
-      for jet in jets_det_selected:
-        if jet.perp()-rho_bge*jet.area() > 5:
-          jets_det_reselected.append(jet)
-      jets_det_selected = jets_det_reselected
-
+      
+    ############################## JET MATCHING ##############################
     # perform jet-matching, every det jet has a guaranteed truth jet match
-    matches = []
     det_used = []
-    for t_jet in jets_truth_selected:
+    for t_jet in jets_truth:
       candidates = []
-      candidates_R = []
+      candidates_pt = []
 
-      delta_R = self.calculate_distance(t_jet, d_jet)
-      for d_jet in jets_det_selected:
-         if delta_R < 0.05 and abs((d_jet.perp() - t_jet.perp()) / d_jet.perp()) < 0.1 \
-            and d_jet not in det_used:
+      for i in range(jets_det_selected.size()):
+        d_jet = jets_det_selected[i]
+
+        if self.calculate_distance(t_jet, d_jet) < 0.2 and d_jet not in det_used:
           candidates.append(d_jet)
-          candidates_R.append(delta_R)
+          candidates_pt.append(jets_pt_selected[i])
 
       # if match found
       if len(candidates) > 0:
-        det_match = candidates[np.argmin(candidates_R)]
+        winner_arg = np.argmin(np.abs(np.array(candidates_pt) - t_jet.perp()))
+        det_match = candidates[winner_arg]
+        det_match_pt = candidates_pt[winner_arg]
         det_used.append(det_match)
-        matches.append((t_jet, det_match))
 
-      self.fill_matched_jet_histograms(det_match, t_jet)
+        self.fill_matched_jet_histograms(det_match, t_jet, det_match_pt)
 
   #---------------------------------------------------------------
   # This function is called once for each jetR
   # You must implement this
   #---------------------------------------------------------------
-  def initialize_user_output_objects_R(self, jetR):
+  def initialize_user_output_objects(self):
       
-    raise NotImplementedError('You must implement initialize_user_output_objects_R()!')
+    raise NotImplementedError('You must implement initialize_user_output_objects()!')
 
   #---------------------------------------------------------------
   # This function is called once for each matched jet subconfiguration
@@ -666,5 +684,5 @@ class ProcessMCBase(process_base.ProcessBase):
 
 
 # omnifold preprocessing function
-def analyze_matched_pairs(fj_particles_det, fj_particles_truth):
+def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth):
   raise NotImplementedError('You must implement analyze_matched_pairs() in process_mc_ENC.py!')

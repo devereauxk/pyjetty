@@ -102,11 +102,17 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     ########################## TTree output generation #########################
 
     for t_part in c_truth:
+      
+      # cut on 0.15 track pT again so ghosts not filled 
+      if t_part.perp() < 0.15: continue
 
       truth_R = self.calculate_distance(t_part, truth_jet_matched)
 
       match_found = False
       for d_part in c_det:
+
+        # cut on 0.15 track pT again so ghosts not filled 
+        if d_part.perp() < 0.15: continue
 
         det_R = self.calculate_distance(d_part, det_jet_matched)
         

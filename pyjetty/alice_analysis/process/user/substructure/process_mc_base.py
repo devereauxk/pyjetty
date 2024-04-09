@@ -581,7 +581,7 @@ class ProcessMCBase(process_base.ProcessBase):
       # TODO make sure user info still exists after jet clustering
 
       # KD: EEC preprocessed output
-      self.analyze_matched_pairs(det_jets, truth_jets)
+      # self.analyze_matched_pairs(det_jets, truth_jets)
 
       # KD: jet-trk preprocessed output
       self.analyze_jets(det_jets, truth_jets, jetR)
@@ -610,15 +610,14 @@ class ProcessMCBase(process_base.ProcessBase):
   #---------------------------------------------------------------
   def analyze_jets(self, jets_det, jets_truth, jetR, rho = 0):
   
-    # TODO implement embedding support
-
-    # TODO implement leading particle/jet area cuts here or above? - Mateusz will know
-
-    ###### APPLY LEADING PARTICLE and JET AREA CUTS ######
-    # applied only to det/hybrid jets, not to truth jets
     jets_det_selected = fj.vectorPJ()
     jets_pt_selected = []
     for jet in jets_det:
+
+      ############ APPLY LEADING PARTICLE and JET AREA CUTS ######
+      # applied only to det/hybrid jets, not to truth jets
+
+      if jet.is_pure_ghost(): continue
 
       leading_pt = np.max([c.perp() for c in jet.constituents()])
 
@@ -627,7 +626,6 @@ class ProcessMCBase(process_base.ProcessBase):
         continue
 
       jet_pt_corrected = jet.perp() - rho*jet.area()
-      # jetR_eff = np.sqrt(jet.area() / np.pi)
 
       if jet_pt_corrected <= 10:
         continue

@@ -405,6 +405,30 @@ class ProcessBase(common_base.CommonBase):
     return False
 
   #---------------------------------------------------------------
+  # Helper to save np tuple tables
+  #---------------------------------------------------------------
+  def save_np_array(self, attr_name, output_name, branches):
+
+    name = output_name
+    data_array = np.array(getattr(self, attr_name))
+    
+    tree = ROOT.TTree(name, name)
+    
+    branch_buffers = {}
+    for branch_name in branches:
+        branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
+        tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
+        
+    for i in range(data_array.shape[0]):
+        for j, branch_name in enumerate(branches):
+            branch_buffers[branch_name][0] = data_array[i, j]
+
+        tree.Fill()
+    
+    tree.Write()
+     
+
+  #---------------------------------------------------------------
   # Save all histograms
   #---------------------------------------------------------------
   def save_output_objects(self):
@@ -416,7 +440,7 @@ class ProcessBase(common_base.CommonBase):
     for attr in dir(self):
       
       obj = getattr(self, attr)
-        
+      
       #print(str(attr) + " " + str(type(obj)))
 
       # Write all ROOT histograms and trees to file
@@ -425,95 +449,26 @@ class ProcessBase(common_base.CommonBase):
         obj.Write()
     
     if 'preprocessed_np_mc_eec' in dir(self):
-        name = 'preprocessed_eec'
-        data_array = np.array(getattr(self, 'preprocessed_np_mc_eec'))
-        
-        print("preprocessed_np_mc_eec DATA ARRAY")
-        
-        tree = ROOT.TTree(name, name)
         branches = ['gen_energy_weight', 'gen_R_L', 'gen_jet_pt', 'obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'pt_hat_weight', 'event_n']
-        
-        branch_buffers = {}
-        for branch_name in branches:
-            branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
-            tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
-            
-        for i in range(data_array.shape[0]):
-            for j, branch_name in enumerate(branches):
-                branch_buffers[branch_name][0] = data_array[i, j]
-
-            tree.Fill()
-        
-        tree.Write()
-        fout.Write()
-        fout.Close()
+        self.save_np_array('preprocessed_np_mc_eec', 'preprocessed_eec', branches)
         
     if 'preprocessed_np_data_eec' in dir(self):
-        name = 'preprocessed_eec'
-        data_array = np.array(getattr(self, 'preprocessed_np_data_eec'))
-        
-        print("preprocessed_np_data_eec DATA ARRAY")
-        
-        tree = ROOT.TTree(name, name)
         branches = ['obs_energy_weight', 'obs_R_L', 'obs_jet_pt', 'event_n']
-        
-        branch_buffers = {}
-        for branch_name in branches:
-            branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
-            tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
-            
-        for i in range(data_array.shape[0]):
-            for j, branch_name in enumerate(branches):
-                branch_buffers[branch_name][0] = data_array[i, j]
-
-            tree.Fill()
-        
-        tree.Write()
+        self.save_np_array('preprocessed_np_data_eec', 'preprocessed_eec', branches)
 
     if 'preprocessed_np_mc_jettrk' in dir(self):
-        name = 'preprocessed_jettrk'
-        data_array = np.array(getattr(self, 'preprocessed_np_mc_jettrk'))
-        
-        print("preprocessed_np_mc_jettrk DATA ARRAY")
-        
-        tree = ROOT.TTree(name, name)
         branches = ['gen_R', 'gen_trk_pt', 'gen_jet_pt', 'obs_R', 'obs_trk_pt', 'obs_jet_pt', 'pt_hat_weight', 'event_n']
-        
-        branch_buffers = {}
-        for branch_name in branches:
-            branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
-            tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
-            
-        for i in range(data_array.shape[0]):
-            for j, branch_name in enumerate(branches):
-                branch_buffers[branch_name][0] = data_array[i, j]
-
-            tree.Fill()
-        
-        tree.Write()
+        self.save_np_array('preprocessed_np_mc_jettrk', 'preprocessed_jettrk', branches)
 
     if 'preprocessed_np_data_jettrk' in dir(self):
-        name = 'preprocessed_jrttrk'
-        data_array = np.array(getattr(self, 'preprocessed_np_data_jettrk'))
-        
-        print("preprocessed_np_data_jettrk DATA ARRAY")
-        
-        tree = ROOT.TTree(name, name)
         branches = ['obs_R', 'obs_trk_pt', 'obs_jet_pt', 'event_n']
-        
-        branch_buffers = {}
-        for branch_name in branches:
-            branch_buffers[branch_name] = np.zeros(1, dtype=np.float64)
-            tree.Branch(branch_name, branch_buffers[branch_name], '{}/D'.format(branch_name))
-            
-        for i in range(data_array.shape[0]):
-            for j, branch_name in enumerate(branches):
-                branch_buffers[branch_name][0] = data_array[i, j]
+        self.save_np_array('preprocessed_np_data_jettrk', 'preprocessed_jettrk', branches)
 
-            tree.Fill()
-        
-        tree.Write()
+    if 'preprocessed_np_data_jettrk_bkgd' in dir(self):
+        branches = ['obs_R', 'obs_trk_pt', 'obs_jet_pt', 'event_n']
+        self.save_np_array('preprocessed_np_data_jettrk_bkgd', 'preprocessed_jettrk_bkgd', branches)
 
+    fout.Write()
     fout.Close()
         
 

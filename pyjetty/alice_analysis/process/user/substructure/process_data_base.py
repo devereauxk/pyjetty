@@ -269,10 +269,11 @@ class ProcessDataBase(process_base.ProcessBase):
       jets_selected = fj.sorted_by_pt(jet_selector(cs.inclusive_jets()))
 
       # KD: EEC preprocessed output
-      # self.analyze_matched_pairs(det_jets, truth_jets)
+      self.analyze_pairs(jets_selected)
+      return
 
       # KD: jet-trk preprocessed output
-      self.analyze_jets(jets_selected, jetR, fj_particles)
+      # self.analyze_jets(jets_selected, jetR, fj_particles)
 
     else:
       
@@ -387,11 +388,3 @@ class ProcessDataBase(process_base.ProcessBase):
   def initialize_user_output_objects(self):
   
     raise NotImplementedError('You must implement initialize_user_output_objects()!')
-
-  #---------------------------------------------------------------
-  # This function is called once for each jet subconfiguration
-  # You must implement this
-  #---------------------------------------------------------------
-  def fill_jet_histograms(self, jet, jet_pt_corrected):
-  
-    raise NotImplementedError('You must implement fill_jet_histograms()!')

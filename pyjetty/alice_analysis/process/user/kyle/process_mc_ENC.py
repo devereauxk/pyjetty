@@ -175,8 +175,11 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     jet_pt = jet.perp()
 
     #push constutents to a vector in python
+    #reapply pt cut incase of ghosts
     _v = fj.vectorPJ()
-    _ = [_v.push_back(c) for c in jet.constituents()]
+    for c in jet.constituents():
+      if c.perp() > 0.15:
+         _v.push_back(c)
 
     # n-point correlator with all charged particles
     max_npoint = 2
@@ -199,7 +202,7 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
 
     return pairs
 
-  def fill_matched_jet_histograms(self, det_jet_matched, truth_jet_matched):
+  def fill_matched_jet_histograms(self, det_jet_matched, truth_jet_matched, det_jet_matched_pt):
     return
 
 

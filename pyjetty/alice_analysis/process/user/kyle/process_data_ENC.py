@@ -80,21 +80,20 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
 
     deta = p0.eta() - p1.eta()
     return math.sqrt(deta*deta + dphi*dphi)
+  
+  def analyze_pairs(self, jets):
     
-  #---------------------------------------------------------------
-  # This function is called once for each jet subconfiguration
-  #---------------------------------------------------------------
-  def fill_jet_histograms(self, jet, jetR, jet_pt_corrected, obs_setting, obs_label):
-
-    self.fill_jet_tables(jet)
-    
+    _ = [self.fill_jet_tables(jet) for jet in jets]
 
   def fill_jet_tables(self, jet, ipoint=2):
     jet_pt = jet.perp()
 
     #push constutents to a vector in python
+    #reapply pt cut incase of ghosts
     _v = fj.vectorPJ()
-    _ = [_v.push_back(c) for c in jet.constituents()]
+    for c in jet.constituents():
+      if c.perp() > 0.15:
+         _v.push_back(c)
 
     # n-point correlator with all charged particles
     max_npoint = 2

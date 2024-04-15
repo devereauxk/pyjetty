@@ -248,10 +248,6 @@ class ProcessMCBase(process_base.ProcessBase):
 
     self.initialize_output_objects()
     
-    # Create constituent subtractor, if configured
-    if self.do_constituent_subtraction:
-      self.constituent_subtractor = CEventSubtractor(max_distance=R_max, alpha=self.alpha, max_eta=self.max_eta, bge_rho_grid_size=self.bge_rho_grid_size, max_pt_correct=self.max_pt_correct, ghost_area=self.ghost_area, distance_type=fjcontrib.ConstituentSubtractor.deltaR)
-    
     print(self)
     
     # Find jets and fill histograms
@@ -581,10 +577,11 @@ class ProcessMCBase(process_base.ProcessBase):
       # TODO make sure user info still exists after jet clustering
 
       # KD: EEC preprocessed output
-      # self.analyze_matched_pairs(det_jets, truth_jets)
+      self.analyze_matched_pairs(det_jets, truth_jets)
+      return
 
       # KD: jet-trk preprocessed output
-      self.analyze_jets(det_jets, truth_jets, jetR)
+      # self.analyze_jets(det_jets, truth_jets, jetR)
       
     else:
 
@@ -599,7 +596,7 @@ class ProcessMCBase(process_base.ProcessBase):
       getattr(self, "hRho").Fill(rho)
       getattr(self, "hSigma").Fill(sigma)
       
-      cs_hybrid = fj.ClusterSequenceArea(fj_particles_hybrid, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts)) # choice to use constituent subtraction here
+      cs_hybrid = fj.ClusterSequenceArea(fj_particles_hybrid, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
       hybrid_jets = fj.sorted_by_pt(jet_selector_det(cs_hybrid.inclusive_jets()))
 
       self.analyze_jets(hybrid_jets, truth_jets, jetR, rho=rho)
@@ -666,20 +663,6 @@ class ProcessMCBase(process_base.ProcessBase):
   def initialize_user_output_objects(self):
       
     raise NotImplementedError('You must implement initialize_user_output_objects()!')
-
-  #---------------------------------------------------------------
-  # This function is called once for each matched jet subconfiguration
-  # You must implement this
-  #---------------------------------------------------------------
-  def fill_matched_jet_histograms(self, jet_det, jet_det_groomed_lund, jet_truth,
-                                  jet_truth_groomed_lund, jet_pp_det, jetR,
-                                  obs_setting, grooming_setting, obs_label,
-                                  jet_pt_det_ungroomed, jet_pt_truth_ungroomed,
-                                  R_max, suffix,
-                                  **kwargs):
-
-    raise NotImplementedError('You must implement fill_matched_jet_histograms()!')
-
 
 # omnifold preprocessing function
 def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth):

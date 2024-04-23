@@ -503,11 +503,15 @@ class ProcessMCBase(process_base.ProcessBase):
       if part.user_index() == dummy_index:
         part.set_user_index(index)
         index += 1
+
+    unmatched_det = 0
     for i in range(len(fj_particles_det)):
       part = fj_particles_det[i]
       if part.user_index() == dummy_index:
         part.set_user_index(index)
         index += 1
+        unmatched_det += 1
+    # print("det matches: {} / {} = {}".format(unmatched_det, len(fj_particles_det), unmatched_det / len(fj_particles_det)))
 
     ######################### CONSTRUCT ENBEDDED EVENT ##########################
     # positive index = signal particle
@@ -577,11 +581,10 @@ class ProcessMCBase(process_base.ProcessBase):
       # TODO make sure user info still exists after jet clustering
 
       # KD: EEC preprocessed output
-      self.analyze_matched_pairs(det_jets, truth_jets)
-      return
+      # self.analyze_matched_pairs(det_jets, truth_jets)
 
       # KD: jet-trk preprocessed output
-      # self.analyze_jets(det_jets, truth_jets, jetR)
+      self.analyze_jets(det_jets, truth_jets, jetR)
       
     else:
 

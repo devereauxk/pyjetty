@@ -45,6 +45,12 @@ def logbins(xmin, xmax, nbins):
   arr = array.array('f', lspace)
   return arr
 
+# define binnings
+n_bins = [20, 20, 6] # WARNING RooUnfold seg faults if too many bins used
+binnings = [np.logspace(-5,0,n_bins[0]+1), \
+            np.logspace(-2.09,0,n_bins[1]+1), \
+            np.array([5, 20, 40, 60, 80, 100, 150]).astype(float) ]
+
 
 ################################################################
 class EEC_pair:
@@ -108,6 +114,15 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     h = []
     setattr(self, name, h)
 
+    # for purity correction
+    name = 'reco'
+    h = ROOT.TH3D("reco", "reco", n_bins[0], binnings[0], n_bins[1], binnings[1], n_bins[2], binnings[2])
+    setattr(self, name, h)
+
+    name = 'reco_unmatched'
+    h = ROOT.TH3D("reco_unmatched", "reco_unmatched", n_bins[0], binnings[0], n_bins[1], binnings[1], n_bins[2], binnings[2])
+    setattr(self, name, h)
+
 
   def analyze_matched_pairs(self, det_jets, truth_jets):
     # assumes det and truth parts are matched beforehand:
@@ -126,6 +141,12 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     for jet in det_jets:
       det_pairs += self.get_EEC_pairs(jet, ipoint=2)
 
+    ######### purity correction #########
+    # calculate det EEC cross section irregardless if truth match exists
+
+    for d_pair in det_pairs:
+       getattr(self, "reco_unmatched").Fill(d_pair.weight, d_pair.r, d_pair.pt, self.pt_hat)
+
     ########################## TTree output generation #########################
 	  # composite of truth and smeared pairs, fill the TTree preprocessed
     dummyval = -9999
@@ -140,12 +161,17 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
 
         match_found = False
         for d_pair in det_pairs:
+
           if d_pair.is_equal(t_pair):
             obs_energy_weight = d_pair.weight
             obs_R_L = d_pair.r
             obs_jet_pt = d_pair.pt
+
+            getattr(self, "reco").Fill(d_pair.weight, d_pair.r, d_pair.pt, self.pt_hat)
+
             match_found = True
             break
+
         if not match_found:
           obs_energy_weight = dummyval
           obs_R_L = dummyval

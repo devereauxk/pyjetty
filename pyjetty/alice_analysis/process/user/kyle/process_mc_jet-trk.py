@@ -46,6 +46,12 @@ def logbins(xmin, xmax, nbins):
   arr = array.array('f', lspace)
   return arr
 
+# define binnings
+n_bins = [12, 15, 6] # WARNING RooUnfold seg faults if too many bins used
+binnings = [np.linspace(0,0.4,n_bins[0]+1), \
+            np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
+            np.array([5, 20, 40, 60, 80, 100, 150]).astype(float) ]
+
 
 ################################################################
 class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
@@ -78,6 +84,22 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     name = 'preprocessed_np_mc_jettrk'
     h = []
     setattr(self, name, h)
+
+    # for purity correction
+    name = 'reco'
+    h = ROOT.TH3D("reco", "reco", n_bins[0], binnings[0], n_bins[1], binnings[1], n_bins[2], binnings[2])
+    setattr(self, name, h)
+
+    name = 'reco_unmatched'
+    h = ROOT.TH3D("reco_unmatched", "reco_unmatched", n_bins[0], binnings[0], n_bins[1], binnings[1], n_bins[2], binnings[2])
+    setattr(self, name, h)
+
+    # jet axis before/after embedding study, function of delta R and det jet pT
+    name = 'jet_axis_diff'
+    N_delta_R_bins = 100
+    delta_R_bins = np.linspace(0, 0.2, N_delta_R_bins+1)
+    h = ROOT.TH2D("jet_axis_diff", "jet_axis_diff", N_delta_R_bins, delta_R_bins, n_bins[2], binnings[2])
+    setattr(self, name, h)
         
         
   #---------------------------------------------------------------
@@ -92,14 +114,29 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     # also assumes all jet and particle level cuts have been applied already
     # TODO this is untested
 
-    dummy_val = -9999
-
     name = 'preprocessed_np_mc_jettrk'
 
     c_truth = truth_jet_matched.constituents()
     c_det = det_jet_matched.constituents()
 
+    ######### purity correction #########
+    # calculate det EEC cross section irregardless if truth match exists
+
+    for d_part in c_det:
+      if d_part.perp() < 0.15: continue # TODO assert not background here?
+
+      det_R = self.calculate_distance(d_part, det_jet_matched)
+      getattr(self, "reco_unmatched").Fill(det_R, d_part.perp(), det_pt_corrected, self.pt_hat)
+
+
+    ######### jet axis before/after embedding check #########
+    jetaxis_R = self.calculate_distance(det_jet_matched, truth_jet_matched)
+    getattr(self, "jet_axis_diff").Fill(jetaxis_R, det_jet_matched.perp(), self.pt_hat)
+    
+
     ########################## TTree output generation #########################
+    # composite of truth and smeared pairs, fill the TTree preprocessed
+    dummyval = -9999
 
     for t_part in c_truth:
       
@@ -122,14 +159,16 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
 
           getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), \
                                       det_R, d_part.perp(), det_pt_corrected, self.pt_hat, self.event_number])
+          
+          getattr(self, "reco").Fill(det_R, d_part.perp(), det_pt_corrected, self.pt_hat)
 
-          match_found = True 
+          match_found = True
           break
 
         # if no match is found for this truth particle, fill it in the table, but without any
         # corresponding det data
       if not match_found:
-        getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), dummy_val, dummy_val, dummy_val, self.pt_hat, self.event_number])
+        getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), dummyval, dummyval, dummyval, self.pt_hat, self.event_number])
 
 
   def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth):

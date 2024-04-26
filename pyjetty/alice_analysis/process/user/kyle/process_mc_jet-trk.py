@@ -63,14 +63,6 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
   
     # Initialize base class
     super(ProcessMC_JetTrk, self).__init__(input_file, config_file, output_dir, debug_level, **kwargs)
-    
-    # find pt_hat for set of events in input_file, assumes all events in input_file are in the same pt_hat bin
-    self.pt_hat_bin = int(input_file.split('/')[len(input_file.split('/'))-4]) # depends on exact format of input_file name
-    with open("/global/cfs/projectdirs/alice/alicepro/hiccup/rstorage/alice/data/LHC18b8/scaleFactors.yaml", 'r') as stream:
-        pt_hat_yaml = yaml.safe_load(stream)
-    self.pt_hat = pt_hat_yaml[self.pt_hat_bin]
-    print("pt hat bin : " + str(self.pt_hat_bin))
-    print("pt hat weight : " + str(self.pt_hat))
 
   #---------------------------------------------------------------
   # Initialize histograms
@@ -100,6 +92,68 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     delta_R_bins = np.linspace(0, 0.2, N_delta_R_bins+1)
     h = ROOT.TH2D("jet_axis_diff", "jet_axis_diff", N_delta_R_bins, delta_R_bins, n_bins[2], binnings[2])
     setattr(self, name, h)
+
+  #---------------------------------------------------------------
+  # Analyze jets of a given event.
+  #---------------------------------------------------------------
+  def analyze_jets(self, jets_det, jets_truth, jetR, rho = 0):
+  
+    jets_det_selected = fj.vectorPJ()
+    jets_pt_selected = []
+    for jet in jets_det:
+
+      ############ APPLY LEADING PARTICLE and JET AREA CUTS ######
+      # applied only to det/hybrid jets, not to truth jets
+
+      if jet.is_pure_ghost(): continue
+
+      leading_pt = np.max([c.perp() for c in jet.constituents()])
+
+      # jet area and leading particle pt cut
+      if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
+        continue
+
+      jet_pt_corrected = jet.perp() - rho*jet.area()
+
+      if jet_pt_corrected <= self.jet_pt_min:
+        continue
+
+      jets_pt_selected.append(jet_pt_corrected)
+      jets_det_selected.push_back(jet)
+
+    if self.debug_level > 1:
+      print('Number of det-level jets: {}'.format(len(jets_det_selected)))
+      
+    ############################## JET MATCHING ##############################
+    # perform jet-matching, every det jet has a guaranteed truth jet match
+    det_used = []
+    for t_jet in jets_truth:
+      candidates = []
+      candidates_pt = []
+
+      for i in range(jets_det_selected.size()):
+        d_jet = jets_det_selected[i]
+
+        if self.calculate_distance(t_jet, d_jet) < 0.2 and d_jet not in det_used:
+          candidates.append(d_jet)
+          candidates_pt.append(jets_pt_selected[i])
+
+      # if match found
+      if len(candidates) > 0:
+        winner_arg = np.argmin(np.abs(np.array(candidates_pt) - t_jet.perp()))
+        det_match = candidates[winner_arg]
+        det_match_pt = candidates_pt[winner_arg]
+        det_used.append(det_match)
+
+        getattr(self, "preprocessed_np_mc_jetpt").append([t_jet.perp(), det_match_pt, self.pt_hat])
+
+        self.fill_matched_jet_histograms(det_match, t_jet, det_match_pt)
+
+      # if match not found
+      else:
+        self.fill_matched_jet_histograms(det)
+        
+        getattr(self, "preprocessed_np_mc_jetpt").append([t_jet.perp(), -9999, self.pt_hat])
         
         
   #---------------------------------------------------------------
@@ -161,6 +215,9 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
                                       det_R, d_part.perp(), det_pt_corrected, self.pt_hat, self.event_number])
           
           getattr(self, "reco").Fill(det_R, d_part.perp(), det_pt_corrected, self.pt_hat)
+
+          # print("{}, {}, {} | {}, {}, {}".format(truth_R, t_part.perp(), truth_jet_matched.perp(), det_R, d_part.perp(), det_pt_corrected))
+          #print("{} | {}".format(truth_R, det_R))
 
           match_found = True
           break

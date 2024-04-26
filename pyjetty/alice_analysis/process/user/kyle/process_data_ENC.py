@@ -81,9 +81,26 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
     deta = p0.eta() - p1.eta()
     return math.sqrt(deta*deta + dphi*dphi)
   
-  def analyze_pairs(self, jets):
-    
-    _ = [self.fill_jet_tables(jet) for jet in jets]
+  #---------------------------------------------------------------
+  # Analyze jets of a given event.
+  #---------------------------------------------------------------
+  def analyze_jets(self, jets, jetR, fj_particles, rho = 0):
+
+    # assumed pp so no area or leading track cuts applied
+
+    for jet in jets:
+
+      if jet.is_pure_ghost(): continue
+
+      if jet.perp() <= self.jetpt_min_det:
+        continue
+
+      ################# JETS PASSED, FILL HISTS #################
+
+      # fill signal histograms
+      # must be placed after embedded 60 GeV particle check (PbPb only)!
+      self.fill_jet_tables(jet)
+      
 
   def fill_jet_tables(self, jet, ipoint=2):
     jet_pt = jet.perp()

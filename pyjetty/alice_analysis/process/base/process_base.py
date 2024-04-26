@@ -467,6 +467,11 @@ class ProcessBase(common_base.CommonBase):
     if 'preprocessed_np_data_jettrk_bkgd' in dir(self):
         branches = ['obs_R', 'obs_trk_pt', 'obs_jet_pt', 'event_n']
         self.save_np_array('preprocessed_np_data_jettrk_bkgd', 'preprocessed_jettrk_bkgd', branches)
+    
+    if 'preprocessed_np_mc_jetpt' in dir(self):
+      branches = ['gen_jet_pt', 'obs_jet_pt', 'pt_hat_weight']
+      self.save_np_array('preprocessed_np_mc_jetpt', 'preprocessed_jetpt', branches)
+
 
     fout.Write()
     fout.Close()

@@ -72,6 +72,14 @@ class ProcessMCBase(process_base.ProcessBase):
   
     # Initialize base class
     super(ProcessMCBase, self).__init__(input_file, config_file, output_dir, debug_level, **kwargs)
+
+    # find pt_hat for set of events in input_file, assumes all events in input_file are in the same pt_hat bin
+    self.pt_hat_bin = int(input_file.split('/')[len(input_file.split('/'))-4]) # depends on exact format of input_file name
+    with open("/global/cfs/projectdirs/alice/alicepro/hiccup/rstorage/alice/data/LHC18b8/scaleFactors.yaml", 'r') as stream:
+        pt_hat_yaml = yaml.safe_load(stream)
+    self.pt_hat = pt_hat_yaml[self.pt_hat_bin]
+    print("pt hat bin : " + str(self.pt_hat_bin))
+    print("pt hat weight : " + str(self.pt_hat))
     
     # Initialize configuration
     self.initialize_config()
@@ -119,6 +127,16 @@ class ProcessMCBase(process_base.ProcessBase):
 
     if not self.is_pp:
       self.emb_file_list = config['emb_file_list']
+
+    if 'jetpt_min_det' in config:
+      self.jetpt_min_det = config['jetpt_min_det']
+    else:
+      self.jetpt_min_det = 10
+
+    if 'jetpt_min_truth' in config:
+      self.jetpt_min_truth = config['jetpt_min_truth']
+    else:
+      self.jetpt_min_truth = 5
         
     if 'thermal_model' in config:
       self.thermal_model = True
@@ -144,14 +162,6 @@ class ProcessMCBase(process_base.ProcessBase):
       obs_subconfig_list = [name for name in list(obs_config_dict.keys()) if 'config' in name ]
       self.obs_settings[observable] = self.utils.obs_settings(observable, obs_config_dict, obs_subconfig_list)
       self.obs_grooming_settings[observable] = self.utils.grooming_settings(obs_config_dict)
-      
-    # Construct set of unique grooming settings
-    self.grooming_settings = []
-    lists_grooming = [self.obs_grooming_settings[obs] for obs in self.observable_list]
-    for observable in lists_grooming:
-      for setting in observable:
-        if setting not in self.grooming_settings and setting != None:
-          self.grooming_settings.append(setting)
 
     # KD: assume one observable setting/label
     observable = self.observable_list[0]
@@ -267,6 +277,10 @@ class ProcessMCBase(process_base.ProcessBase):
 
     # Initialize user-specific histograms
     self.initialize_user_output_objects()
+
+    name = 'preprocessed_np_mc_jetpt'
+    h = []
+    setattr(self, name, h)
     
     self.hNevents = ROOT.TH1F('hNevents', 'hNevents', 2, -0.5, 1.5)
     self.hNevents.Fill(1, self.nEvents_det)
@@ -337,7 +351,7 @@ class ProcessMCBase(process_base.ProcessBase):
       dphi = 2*math.pi - dphiabs
 
     deta = p0.eta() - p1.eta()
-    return math.sqrt(deta*deta + dphi*dphi)  
+    return math.sqrt(deta*deta + dphi*dphi)
 
   #---------------------------------------------------------------
   # Main function to loop through and analyze events
@@ -526,8 +540,8 @@ class ProcessMCBase(process_base.ProcessBase):
 
       # give each particle new unique user_index
       for part in fj_particles_hybrid:
-        part.set_user_index(i)
-        i -= 1
+        part.set_user_index(index)
+        index -= 1
           
       # Form the combined det-level event
       _ = [fj_particles_hybrid.push_back(p) for p in fj_particles_det]
@@ -556,8 +570,8 @@ class ProcessMCBase(process_base.ProcessBase):
 
     # Set jet definition and a jet selector
     jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-    jet_selector_det = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
-    jet_selector_truth = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9)
+    jet_selector_det = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
+    jet_selector_truth = fj.SelectorPtMin(self.jetpt_min_truth) & fj.SelectorAbsRapMax(0.9)
 
     if self.debug_level > 2:
       print('')
@@ -578,12 +592,7 @@ class ProcessMCBase(process_base.ProcessBase):
       cs_det = fj.ClusterSequenceArea(fj_particles_det, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
       det_jets = fj.sorted_by_pt(jet_selector_det(cs_det.inclusive_jets()))
 
-      # TODO make sure user info still exists after jet clustering
-
-      # KD: EEC preprocessed output
-      # self.analyze_matched_pairs(det_jets, truth_jets)
-
-      # KD: jet-trk preprocessed output
+      # KD: EEC and jet-trk preprocessed output
       self.analyze_jets(det_jets, truth_jets, jetR)
       
     else:
@@ -605,59 +614,9 @@ class ProcessMCBase(process_base.ProcessBase):
       self.analyze_jets(hybrid_jets, truth_jets, jetR, rho=rho)
 
 
-  #---------------------------------------------------------------
-  # Analyze jets of a given event.
-  #---------------------------------------------------------------
   def analyze_jets(self, jets_det, jets_truth, jetR, rho = 0):
-  
-    jets_det_selected = fj.vectorPJ()
-    jets_pt_selected = []
-    for jet in jets_det:
-
-      ############ APPLY LEADING PARTICLE and JET AREA CUTS ######
-      # applied only to det/hybrid jets, not to truth jets
-
-      if jet.is_pure_ghost(): continue
-
-      leading_pt = np.max([c.perp() for c in jet.constituents()])
-
-      # jet area and leading particle pt cut
-      if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
-        continue
-
-      jet_pt_corrected = jet.perp() - rho*jet.area()
-
-      if jet_pt_corrected <= 10:
-        continue
-
-      jets_pt_selected.append(jet_pt_corrected)
-      jets_det_selected.push_back(jet)
-
-    if self.debug_level > 1:
-      print('Number of det-level jets: {}'.format(len(jets_det_selected)))
-      
-    ############################## JET MATCHING ##############################
-    # perform jet-matching, every det jet has a guaranteed truth jet match
-    det_used = []
-    for t_jet in jets_truth:
-      candidates = []
-      candidates_pt = []
-
-      for i in range(jets_det_selected.size()):
-        d_jet = jets_det_selected[i]
-
-        if self.calculate_distance(t_jet, d_jet) < 0.2 and d_jet not in det_used:
-          candidates.append(d_jet)
-          candidates_pt.append(jets_pt_selected[i])
-
-      # if match found
-      if len(candidates) > 0:
-        winner_arg = np.argmin(np.abs(np.array(candidates_pt) - t_jet.perp()))
-        det_match = candidates[winner_arg]
-        det_match_pt = candidates_pt[winner_arg]
-        det_used.append(det_match)
-
-        self.fill_matched_jet_histograms(det_match, t_jet, det_match_pt)
+    
+    raise NotImplementedError('You must implement analyze_jets()!')
 
   #---------------------------------------------------------------
   # This function is called once for each jetR

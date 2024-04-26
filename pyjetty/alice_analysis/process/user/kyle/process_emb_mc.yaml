@@ -22,6 +22,8 @@ fast_simulation: False
 ENC_fastsim: False # only set to True when fast_simulation is set to True
 # deprecated dont use idk what it sfor
 
+jet_pt_min: 60.0
+
 # Observable block
 jet_pt_JetPt:
 

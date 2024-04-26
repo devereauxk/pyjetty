@@ -88,6 +88,12 @@ class ProcessDataBase(process_base.ProcessBase):
     else:
       self.do_rho_subtraction = False
 
+    if 'jetpt_min_det' in config:
+      self.jetpt_min_det = config['jetpt_min_det']
+    else:
+      self.jetpt_min_det = 5
+
+
     # Create dictionaries to store grooming settings and observable settings for each observable
     # Each dictionary entry stores a list of subconfiguration parameters
     #   The observable list stores the observable setting, e.g. subjetR
@@ -103,14 +109,6 @@ class ProcessDataBase(process_base.ProcessBase):
       obs_subconfig_list = [name for name in list(obs_config_dict.keys()) if 'config' in name ]
       self.obs_settings[observable] = self.utils.obs_settings(observable, obs_config_dict, obs_subconfig_list)
       self.obs_grooming_settings[observable] = self.utils.grooming_settings(obs_config_dict)
-      
-    # Construct set of unique grooming settings
-    self.grooming_settings = []
-    lists_grooming = [self.obs_grooming_settings[obs] for obs in self.observable_list]
-    for observable in lists_grooming:
-      for setting in observable:
-        if setting not in self.grooming_settings and setting != None:
-          self.grooming_settings.append(setting)
 
     # KD: assume one observable setting/label
     observable = self.observable_list[0]
@@ -256,7 +254,7 @@ class ProcessDataBase(process_base.ProcessBase):
 
     # Set jet definition and a jet selector
     jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-    jet_selector = fj.SelectorPtMin(10.0) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
+    jet_selector = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
 
     if self.debug_level > 2:
         print('jet definition is:', jet_def)
@@ -268,12 +266,8 @@ class ProcessDataBase(process_base.ProcessBase):
       cs = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
       jets_selected = fj.sorted_by_pt(jet_selector(cs.inclusive_jets()))
 
-      # KD: EEC preprocessed output
-      self.analyze_pairs(jets_selected)
-      return
-
-      # KD: jet-trk preprocessed output
-      # self.analyze_jets(jets_selected, jetR, fj_particles)
+      # KD: EEC and jet-trk preprocessed output
+      self.analyze_jets(jets_selected, jetR, fj_particles)
 
     else:
       
@@ -284,7 +278,7 @@ class ProcessDataBase(process_base.ProcessBase):
       random_phi = np.random.uniform(0, 2*np.pi)
       probe = fj.PseudoJet()
       probe.reset_PtYPhiM(60, random_Y, random_phi, 1)
-      probe.set_user_index(-3)
+      probe.set_user_index(-3) #issue
       fj_particles.push_back(probe)
 
       # rho calculation
@@ -305,81 +299,12 @@ class ProcessDataBase(process_base.ProcessBase):
 
 
   #---------------------------------------------------------------
-  # Analyze jets of a given event.
+  # This function is called once
+  # You must implement this
   #---------------------------------------------------------------
   def analyze_jets(self, jets, jetR, fj_particles, rho = 0):
 
-    for jet in jets:
-
-      ############ APPLY LEADING PARTICLE and JET AREA CUTS ######
-      # applied only to det/hybrid jets, not to truth jets
-
-      if jet.is_pure_ghost(): continue
-
-      leading_pt = np.max([c.perp() for c in jet.constituents()])
-
-      # print("pt {} leading {} area {}".format(jet.perp(), leading_pt, jet.area()))
-
-      # jet area and leading particle pt cut
-      if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
-        continue
-
-      jet_pt_corrected = jet.perp() - rho*jet.area()
-
-      if jet_pt_corrected <= 10:
-        continue
-
-      ################# JETS PASSED, FILL HISTS #################
-
-      # for PbPb data
-      if not self.is_pp:
-        # handle jets that contain the embeded particle, fill hists, and skip analysis for this jet
-        embeded_index = np.where(np.array([c.user_index() for c in jet.constituents()]) == -3)[0]
-        if len(embeded_index) != 0:
-          embeded_part = jet.constituents()[embeded_index[0]]
-          delta_pt = jet_pt_corrected - embeded_part.perp() 
-          getattr(self, "hDelta_pt").Fill(delta_pt)
-          continue
-
-        # fill background histograms
-        self.analyze_perp_cones(jet, jet_pt_corrected, fj_particles)
-
-      # print('jet that passes everything!')
-
-      # fill signal histograms
-      # must be placed after embedded 60 GeV particle check (PbPb only)!
-      self.fill_jet_histograms(jet, jet_pt_corrected)
-
-
-  #---------------------------------------------------------------
-  # Analyze perpendicular cones to a given signal jet
-  #---------------------------------------------------------------
-  def analyze_perp_cones(self, jet, jets_pt_corrected, fj_particles):
-      
-    jetR_eff = np.sqrt(jet.area() / np.pi)
-
-    perp_jet1 = fj.PseudoJet()
-    perp_jet1.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi() + np.pi/2, jet.m())
-    parts_in_perpcone1 = self.find_parts_around_jet(fj_particles, perp_jet1, jetR_eff) # jet R
-
-    perp_jet2 = fj.PseudoJet()
-    perp_jet2.reset_PtYPhiM(jet.perp(), jet.rap(), jet.phi() - np.pi/2, jet.m())
-    parts_in_perpcone2 = self.find_parts_around_jet(fj_particles, perp_jet2, jetR_eff) # jet R
-
-    self.fill_jet_histograms(perp_jet1, jets_pt_corrected, c_select=parts_in_perpcone1, is_perpcone=True)
-
-    self.fill_jet_histograms(perp_jet2, jets_pt_corrected, c_select=parts_in_perpcone2, is_perpcone=True)
-
-
-
-  def find_parts_around_jet(self, parts, jet, cone_R):
-    # select particles around jet axis
-    cone_parts = fj.vectorPJ()
-    for part in parts:
-      if self.calculate_distance(jet, part):
-        cone_parts.push_back(part)
-    
-    return cone_parts
+    raise NotImplementedError('You must implement analyze_jets()!')
 
   #---------------------------------------------------------------
   # This function is called once

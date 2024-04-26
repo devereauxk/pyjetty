@@ -81,14 +81,6 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
   
     # Initialize base class
     super(ProcessMC_ENC, self).__init__(input_file, config_file, output_dir, debug_level, **kwargs)
-    
-    # find pt_hat for set of events in input_file, assumes all events in input_file are in the same pt_hat bin
-    self.pt_hat_bin = int(input_file.split('/')[len(input_file.split('/'))-4]) # depends on exact format of input_file name
-    with open("/global/cfs/projectdirs/alice/alicepro/hiccup/rstorage/alice/data/LHC18b8/scaleFactors.yaml", 'r') as stream:
-        pt_hat_yaml = yaml.safe_load(stream)
-    self.pt_hat = pt_hat_yaml[self.pt_hat_bin]
-    print("pt hat bin : " + str(self.pt_hat_bin))
-    print("pt hat weight : " + str(self.pt_hat))
 
   #---------------------------------------------------------------
   # Calculate pair distance of two fastjet particles
@@ -123,23 +115,65 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     h = ROOT.TH3D("reco_unmatched", "reco_unmatched", n_bins[0], binnings[0], n_bins[1], binnings[1], n_bins[2], binnings[2])
     setattr(self, name, h)
 
+  #---------------------------------------------------------------
+  # Analyze jets of a given event.
+  #---------------------------------------------------------------
+  def analyze_jets(self, jets_det, jets_truth, jetR, rho = 0):
+  
+    jets_det_selected = fj.vectorPJ()
 
-  def analyze_matched_pairs(self, det_jets, truth_jets):
+    # kinda unnessesary check
+    for jet in jets_det:
+
+      if jet.is_pure_ghost(): continue
+
+      if jet.perp() <= self.jetpt_min_det:
+        continue
+
+      jets_det_selected.push_back(jet)
+
+    if self.debug_level > 1:
+      print('Number of det-level jets: {}'.format(len(jets_det_selected)))
+      
+    ############################## JET MATCHING ##############################
+    # perform jet-matching, every det jet has a guaranteed truth jet match
+    det_used = []
+    for t_jet in jets_truth:
+      candidates = []
+      candidates_pt = []
+
+      for i in range(jets_det_selected.size()):
+        d_jet = jets_det_selected[i]
+
+        if self.calculate_distance(t_jet, d_jet) < 0.2 and d_jet not in det_used:
+          candidates.append(d_jet)
+          candidates_pt.append(d_jet.perp())
+
+      # if match found
+      if len(candidates) > 0:
+        winner_arg = np.argmin(np.abs(np.array(candidates_pt) - t_jet.perp()))
+        det_match = candidates[winner_arg]
+        det_match_pt = candidates_pt[winner_arg]
+        det_used.append(det_match)
+
+        getattr(self, "preprocessed_np_mc_jetpt").append([t_jet.perp(), det_match_pt, self.pt_hat])
+
+        self.fill_matched_jet_histograms(det_match, t_jet, det_match_pt)
+
+      # if match not found, DONT DO ANYTHING, we had a whole conversation about this...
+        
+      
+  def fill_matched_jet_histograms(self, det_jet, truth_jet, det_pt):
     # assumes det and truth parts are matched beforehand:
     # matching particles are given matching user_index s
     # if some det or truth part does not have a match, it is given a unique index
     # also assumes all jet and particle level cuts have been applied already
-    # TODO this is untested
 
 	  # truth level EEC pairs
-    truth_pairs = []
-    for jet in truth_jets:
-      truth_pairs += self.get_EEC_pairs(jet, ipoint=2)
+    truth_pairs = self.get_EEC_pairs(truth_jet, ipoint=2)
 
     # det level EEC pairs
-    det_pairs = []
-    for jet in det_jets:
-      det_pairs += self.get_EEC_pairs(jet, ipoint=2)
+    det_pairs = self.get_EEC_pairs(det_jet, ipoint=2)
 
     ######### purity correction #########
     # calculate det EEC cross section irregardless if truth match exists
@@ -157,7 +191,6 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
         gen_energy_weight = t_pair.weight
         gen_R_L = t_pair.r
         gen_jet_pt = t_pair.pt
-        obs_thrown = 0
 
         match_found = False
         for d_pair in det_pairs:
@@ -176,23 +209,10 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
           obs_energy_weight = dummyval
           obs_R_L = dummyval
           obs_jet_pt = dummyval
-          obs_thrown = 1
         
         # find TTree
         name = 'preprocessed_np_mc_eec'
         getattr(self, name).append([gen_energy_weight, gen_R_L, gen_jet_pt, obs_energy_weight, obs_R_L, obs_jet_pt, self.pt_hat, self.event_number])
-        
-    """
-    line = ""
-    for part in fj_particles_truth:
-        line += str(part.user_index()) + " "
-    print(line)
-    
-    line = ""
-    for part in fj_particles_det:
-        line += str(part.user_index()) + " "
-    print(line)
-    """
 
 
   def get_EEC_pairs(self, jet, ipoint=2):
@@ -227,9 +247,6 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
       pairs.append(EEC_pair(event_index1, event_index2, EEC_weights[i], EEC_rs[i], jet_pt))
 
     return pairs
-
-  def fill_matched_jet_histograms(self, det_jet_matched, truth_jet_matched, det_jet_matched_pt):
-    return
 
 
 ##################################################################

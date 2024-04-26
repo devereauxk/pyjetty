@@ -46,12 +46,6 @@ def logbins(xmin, xmax, nbins):
   arr = array.array('f', lspace)
   return arr
 
-# define binnings
-n_bins = [12, 15, 6] # WARNING RooUnfold seg faults if too many bins used
-binnings = [np.linspace(0,0.4,n_bins[0]+1), \
-            np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
-            np.array([5, 20, 40, 60, 80, 100, 150]).astype(float) ]
-
 
 ################################################################
 class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
@@ -69,7 +63,19 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
   #---------------------------------------------------------------
   def initialize_user_output_objects(self):
 
-    # this is the only thing produced! contains all relevant det and truth-level info to fill all histograms
+    # define binnings
+    #if self.is_pp:
+    n_bins = [12, 15, 7] # WARNING RooUnfold seg faults if too many bins used
+    binnings = [np.linspace(0,0.4,n_bins[0]+1), \
+    np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
+    np.array([10, 20, 40, 60, 80, 100, 120, 140]).astype(float) ]
+    """
+    else:
+      n_bins = [12, 15, 7] # WARNING RooUnfold seg faults if too many bins used
+      binnings = [np.linspace(0,0.4,n_bins[0]+1), \
+      np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
+      np.array([40, 60, 80, 100, 120, 140, 160, 200]).astype(float) ]
+    """
 
     # python array with the format (faster than np array!)
     # ['gen_R', 'gen_trk_pt', 'gen_jet_pt', 'obs_R', 'obs_trk_pt', 'obs_jet_pt', 'pt_hat', 'event_n']
@@ -115,8 +121,10 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
 
       jet_pt_corrected = jet.perp() - rho*jet.area()
 
-      if jet_pt_corrected <= self.jet_pt_min:
+      if jet_pt_corrected <= self.jetpt_min_det_subtracted:
         continue
+
+      # print("{} -> {}".format(jet.perp(), jet_pt_corrected))
 
       jets_pt_selected.append(jet_pt_corrected)
       jets_det_selected.push_back(jet)
@@ -146,14 +154,11 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
         det_used.append(det_match)
 
         getattr(self, "preprocessed_np_mc_jetpt").append([t_jet.perp(), det_match_pt, self.pt_hat])
+        # using the rho-subtracted jet pT for the matched reco jet here
 
         self.fill_matched_jet_histograms(det_match, t_jet, det_match_pt)
 
-      # if match not found
-      else:
-        self.fill_matched_jet_histograms(det)
-        
-        getattr(self, "preprocessed_np_mc_jetpt").append([t_jet.perp(), -9999, self.pt_hat])
+      # if match not found, DONT DO ANYTHING, we had a whole conversation about this...
         
         
   #---------------------------------------------------------------
@@ -166,7 +171,6 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     # matching particles are given matching user_index s
     # if some det or truth part does not have a match, it is given a unique index
     # also assumes all jet and particle level cuts have been applied already
-    # TODO this is untested
 
     name = 'preprocessed_np_mc_jettrk'
 
@@ -177,7 +181,7 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     # calculate det EEC cross section irregardless if truth match exists
 
     for d_part in c_det:
-      if d_part.perp() < 0.15: continue # TODO assert not background here?
+      if d_part.perp() < 0.15 or d_part.user_index() < 0: continue # TODO assert not background here?
 
       det_R = self.calculate_distance(d_part, det_jet_matched)
       getattr(self, "reco_unmatched").Fill(det_R, d_part.perp(), det_pt_corrected, self.pt_hat)
@@ -227,9 +231,6 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
       if not match_found:
         getattr(self, name).append([truth_R, t_part.perp(), truth_jet_matched.perp(), dummyval, dummyval, dummyval, self.pt_hat, self.event_number])
 
-
-  def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth):
-    return
 
 ##################################################################
 if __name__ == '__main__':

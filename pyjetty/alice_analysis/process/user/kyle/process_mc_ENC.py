@@ -49,7 +49,7 @@ def logbins(xmin, xmax, nbins):
 n_bins = [20, 20, 6] # WARNING RooUnfold seg faults if too many bins used
 binnings = [np.logspace(-5,0,n_bins[0]+1), \
             np.logspace(-2.09,0,n_bins[1]+1), \
-            np.array([5, 20, 40, 60, 80, 100, 150]).astype(float) ]
+            np.array([10, 20, 40, 60, 80, 100, 150]).astype(float) ]
 
 
 ################################################################
@@ -188,31 +188,31 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     # pair mathcing
     for t_pair in truth_pairs:
 
-        gen_energy_weight = t_pair.weight
-        gen_R_L = t_pair.r
-        gen_jet_pt = t_pair.pt
+      gen_energy_weight = t_pair.weight
+      gen_R_L = t_pair.r
+      gen_jet_pt = t_pair.pt
 
-        match_found = False
-        for d_pair in det_pairs:
+      match_found = False
+      for d_pair in det_pairs:
 
-          if d_pair.is_equal(t_pair):
-            obs_energy_weight = d_pair.weight
-            obs_R_L = d_pair.r
-            obs_jet_pt = d_pair.pt
+        if d_pair.is_equal(t_pair):
+          obs_energy_weight = d_pair.weight
+          obs_R_L = d_pair.r
+          obs_jet_pt = d_pair.pt
 
-            getattr(self, "reco").Fill(d_pair.weight, d_pair.r, d_pair.pt, self.pt_hat)
+          getattr(self, "reco").Fill(d_pair.weight, d_pair.r, d_pair.pt, self.pt_hat)
 
-            match_found = True
-            break
+          match_found = True
+          break
 
-        if not match_found:
-          obs_energy_weight = dummyval
-          obs_R_L = dummyval
-          obs_jet_pt = dummyval
-        
-        # find TTree
-        name = 'preprocessed_np_mc_eec'
-        getattr(self, name).append([gen_energy_weight, gen_R_L, gen_jet_pt, obs_energy_weight, obs_R_L, obs_jet_pt, self.pt_hat, self.event_number])
+      if not match_found:
+        obs_energy_weight = dummyval
+        obs_R_L = dummyval
+        obs_jet_pt = dummyval
+      
+      # find TTree
+      name = 'preprocessed_np_mc_eec'
+      getattr(self, name).append([gen_energy_weight, gen_R_L, gen_jet_pt, obs_energy_weight, obs_R_L, obs_jet_pt, self.pt_hat, self.event_number])
 
 
   def get_EEC_pairs(self, jet, ipoint=2):

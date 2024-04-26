@@ -91,7 +91,12 @@ class ProcessDataBase(process_base.ProcessBase):
     if 'jetpt_min_det' in config:
       self.jetpt_min_det = config['jetpt_min_det']
     else:
-      self.jetpt_min_det = 5
+      self.jetpt_min_det = 10
+
+    if 'jetpt_min_det_subtracted' in config:
+      self.jetpt_min_det_subtracted = config['jetpt_min_det_subtracted']
+    else:
+      self.jetpt_min_det_subtracted = 10
 
 
     # Create dictionaries to store grooming settings and observable settings for each observable
@@ -274,11 +279,12 @@ class ProcessDataBase(process_base.ProcessBase):
       # performs rho subtraction automatically
 
       # embeding random 60GeV particle with unique user_index=-3
+      # TODO should I remove this when running fr?
       random_Y = np.random.uniform(-0.9, 0.9)
       random_phi = np.random.uniform(0, 2*np.pi)
       probe = fj.PseudoJet()
       probe.reset_PtYPhiM(60, random_Y, random_phi, 1)
-      probe.set_user_index(-3) #issue
+      probe.set_user_index(-3)
       fj_particles.push_back(probe)
 
       # rho calculation

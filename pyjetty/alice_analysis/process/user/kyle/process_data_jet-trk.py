@@ -171,7 +171,7 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
 
       jet_pt_corrected = jet.perp() - rho*jet.area()
 
-      if jet_pt_corrected <= self.jet_pt_min:
+      if jet_pt_corrected <= self.jetpt_min_det_subtracted:
         continue
 
       ################# JETS PASSED, FILL HISTS #################

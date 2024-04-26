@@ -137,6 +137,11 @@ class ProcessMCBase(process_base.ProcessBase):
       self.jetpt_min_truth = config['jetpt_min_truth']
     else:
       self.jetpt_min_truth = 5
+
+    if 'jetpt_min_det_subtracted' in config:
+      self.jetpt_min_det_subtracted = config['jetpt_min_det_subtracted']
+    else:
+      self.jetpt_min_det_subtracted = 10
         
     if 'thermal_model' in config:
       self.thermal_model = True
@@ -625,7 +630,3 @@ class ProcessMCBase(process_base.ProcessBase):
   def initialize_user_output_objects(self):
       
     raise NotImplementedError('You must implement initialize_user_output_objects()!')
-
-# omnifold preprocessing function
-def analyze_matched_pairs(self, fj_particles_det, fj_particles_truth):
-  raise NotImplementedError('You must implement analyze_matched_pairs() in process_mc_ENC.py!')

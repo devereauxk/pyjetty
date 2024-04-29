@@ -419,12 +419,6 @@ class ProcessMCBase(process_base.ProcessBase):
       if type(fj_particles_det_holes) != fj.vectorPJ or type(fj_particles_truth_holes) != fj.vectorPJ:
         print('fj_particles_holes type mismatch -- skipping event')
         return
-      
-    if len(fj_particles_truth) > 1:
-      if np.abs(fj_particles_truth[0].pt() - fj_particles_truth[1].pt()) <  1e-10:
-        print('WARNING: Duplicate particles may be present')
-        print([p.user_index() for p in fj_particles_truth])
-        print([p.pt() for p in fj_particles_truth])
 
     #handle case with no truth particles
     if type(fj_particles_truth) is float:
@@ -435,6 +429,12 @@ class ProcessMCBase(process_base.ProcessBase):
     if type(fj_particles_det) is float:
         print("EVENT WITH NO DET PARTICLES!!!")
         fj_particles_det = []
+
+    if len(fj_particles_truth) > 1:
+      if np.abs(fj_particles_truth[0].pt() - fj_particles_truth[1].pt()) <  1e-10:
+        print('WARNING: Duplicate particles may be present')
+        print([p.user_index() for p in fj_particles_truth])
+        print([p.pt() for p in fj_particles_truth])
 
     ##### CHARGE PARTICLE AND PARTICLE PT > 0.15 CUT
         # ALSO RESET ALL USER INDICIES to 0

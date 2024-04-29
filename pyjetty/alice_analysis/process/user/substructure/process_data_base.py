@@ -233,6 +233,11 @@ class ProcessDataBase(process_base.ProcessBase):
       print('event {}'.format(self.event_number))
 
     if self.event_number % 1000 == 0: print("analyzing event : " + str(self.event_number))
+
+    #handle case with no truth particles
+    if type(fj_particles) is float:
+        print("EVENT WITH NO PARTICLES!!!")
+        return
     
     # various checks
     if len(fj_particles) > 1:
@@ -240,11 +245,6 @@ class ProcessDataBase(process_base.ProcessBase):
         print('WARNING: Duplicate particles may be present')
         print([p.user_index() for p in fj_particles])
         print([p.pt() for p in fj_particles])
-
-    #handle case with no truth particles
-    if type(fj_particles) is float:
-        print("EVENT WITH NO PARTICLES!!!")
-        return
     
     ##### PARTICLE PT CUT > 0.15
     fj_particles_pass = fj.vectorPJ()

@@ -64,18 +64,16 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
   def initialize_user_output_objects(self):
 
     # define binnings
-    #if self.is_pp:
-    n_bins = [12, 15, 7] # WARNING RooUnfold seg faults if too many bins used
-    binnings = [np.linspace(0,0.4,n_bins[0]+1), \
-    np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
-    np.array([10, 20, 40, 60, 80, 100, 120, 140]).astype(float) ]
-    """
-    else:
+    if self.is_pp:
       n_bins = [12, 15, 7] # WARNING RooUnfold seg faults if too many bins used
       binnings = [np.linspace(0,0.4,n_bins[0]+1), \
       np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
-      np.array([40, 60, 80, 100, 120, 140, 160, 200]).astype(float) ]
-    """
+      np.array([10, 20, 40, 60, 80, 100, 120, 140]).astype(float) ]
+    else:
+      n_bins = [12, 15, 8] # WARNING RooUnfold seg faults if too many bins used
+      binnings = [np.linspace(0,0.4,n_bins[0]+1), \
+      np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
+      np.array([20, 40, 60, 80, 100, 120, 140, 160, 200]).astype(float) ]
 
     # python array with the format (faster than np array!)
     # ['gen_R', 'gen_trk_pt', 'gen_jet_pt', 'obs_R', 'obs_trk_pt', 'obs_jet_pt', 'pt_hat', 'event_n']

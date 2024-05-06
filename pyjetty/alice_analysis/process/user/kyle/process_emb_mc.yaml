@@ -15,6 +15,7 @@ process_observables: ['jet_pt_JetPt', 'trk_pt_TrkPt', 'jet-trk_shape_RL_TrkPt_Je
     'jet-trk_ptprofile_RL_TrkPt_JetPt', 'jet-trk_ptprofile_RL_z_JetPt']
 is_pp: False
 emb_file_list: '/global/cfs/cdirs/alice/wenqing/ENC/files_LHC18qr.txt'
+jetR: 0.2
 
 reject_tracks_fraction: 0.0
 debug_level: 0
@@ -22,7 +23,7 @@ fast_simulation: False
 ENC_fastsim: False # only set to True when fast_simulation is set to True
 # deprecated dont use idk what it sfor
 
-jetpt_min_truth: 10.0
+jetpt_min_truth: 20.0
 jetpt_min_det: 60.0
 jetpt_min_det_subtracted: 20.0
 

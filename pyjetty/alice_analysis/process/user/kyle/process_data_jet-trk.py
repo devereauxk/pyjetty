@@ -17,15 +17,11 @@ import sys
 
 # Data analysis and plotting
 import ROOT
-import yaml
 import numpy as np
 import array 
-import math
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj
-import fjcontrib
-import ecorrel
 
 # Base class
 from pyjetty.alice_analysis.process.user.substructure import process_data_base
@@ -159,20 +155,21 @@ class ProcessData_JetTrk(process_data_base.ProcessDataBase):
       ############ APPLY LEADING PARTICLE and JET AREA CUTS ######
       # applied only to det/hybrid jets, not to truth jets
 
-      if jet.is_pure_ghost(): continue
+      # jet area cut
+      if not self.is_pp:
+        if jet.area() < 0.6*np.pi*jetR**2 or jet.is_pure_ghost(): continue
 
       leading_pt = np.max([c.perp() for c in jet.constituents()])
 
       # print("pt {} leading {} area {}".format(jet.perp(), leading_pt, jet.area()))
 
       # jet area and leading particle pt cut
-      if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
-        continue
+      if leading_pt < 5 or leading_pt > 100: continue
 
-      jet_pt_corrected = jet.perp() - rho*jet.area()
+      jet_pt_corrected = jet.perp()
+      if not self.is_pp: jet_pt_corrected = jet.perp() - rho*jet.area()
 
-      if jet_pt_corrected <= self.jetpt_min_det_subtracted:
-        continue
+      if jet_pt_corrected <= self.jetpt_min_det_subtracted: continue
 
       ################# JETS PASSED, FILL HISTS #################
 

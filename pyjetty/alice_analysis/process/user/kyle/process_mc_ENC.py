@@ -45,12 +45,21 @@ def logbins(xmin, xmax, nbins):
   arr = array.array('f', lspace)
   return arr
 
-# define binnings
-n_bins = [20, 20, 6] # WARNING RooUnfold seg faults if too many bins used
+n_bins_truth = [20, 20, 7] # WARNING RooUnfold seg faults if too many bins used
+# these are the truth level binnings
+binnings_truth = [np.logspace(-5,0,n_bins_truth[0]+1), \
+            np.logspace(-2.09,0,n_bins_truth[1]+1), \
+            np.array([5, 10, 20, 40, 60, 80, 100, 150]).astype(float) ]
+# slight difference for reco pt bin
+n_bins = [20, 20, 6]
 binnings = [np.logspace(-5,0,n_bins[0]+1), \
             np.logspace(-2.09,0,n_bins[1]+1), \
             np.array([10, 20, 40, 60, 80, 100, 150]).astype(float) ]
 
+event_counter = 0
+n_matches = 0
+n_truth = 0
+n_reco = 0
 
 ################################################################
 class EEC_pair:
@@ -115,22 +124,40 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     h = ROOT.TH3D("reco_unmatched", "reco_unmatched", n_bins[0], binnings[0], n_bins[1], binnings[1], n_bins[2], binnings[2])
     setattr(self, name, h)
 
+    # efficiency and purity check for 1D jet pT unfolding
+    name = 'gen1D_unmatched'
+    h = ROOT.TH1D("gen1D_unmatched", "gen1D_unmatched", n_bins_truth[2], binnings_truth[2])
+    setattr(self, name, h)
+
+    name = 'reco1D_unmatched'
+    h = ROOT.TH1D("reco1D_unmatched", "reco1D_unmatched", n_bins[2], binnings[2])
+    setattr(self, name, h)
+
+
   #---------------------------------------------------------------
   # Analyze jets of a given event.
   #---------------------------------------------------------------
   def analyze_jets(self, jets_det, jets_truth, jetR, rho = 0):
+
+    global n_reco
+    global n_matches
+    global n_truth
+    global event_counter
+
+    myptselector = 40
   
     jets_det_selected = fj.vectorPJ()
 
     # kinda unnessesary check
     for jet in jets_det:
 
-      if jet.is_pure_ghost(): continue
-
       if jet.perp() <= self.jetpt_min_det:
         continue
 
       jets_det_selected.push_back(jet)
+
+      getattr(self, 'reco1D_unmatched').Fill(jet.perp(), self.pt_hat)
+      if jet.perp() > myptselector : n_reco += 1
 
     if self.debug_level > 1:
       print('Number of det-level jets: {}'.format(len(jets_det_selected)))
@@ -141,6 +168,9 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
     for t_jet in jets_truth:
       candidates = []
       candidates_pt = []
+
+      getattr(self, 'gen1D_unmatched').Fill(t_jet.perp(), self.pt_hat)
+      if t_jet.perp() > myptselector : n_truth += 1
 
       for i in range(jets_det_selected.size()):
         d_jet = jets_det_selected[i]
@@ -159,9 +189,16 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
         getattr(self, "preprocessed_np_mc_jetpt").append([t_jet.perp(), det_match_pt, self.pt_hat])
 
         self.fill_matched_jet_histograms(det_match, t_jet, det_match_pt)
+        if det_match.perp() > myptselector : n_matches += 1
 
       # if match not found, DONT DO ANYTHING, we had a whole conversation about this...
-        
+
+    """
+    if event_counter % 1000 == 0 and n_truth > 0 and n_reco > 0:
+      print("truth {} det {} matches {}, [ {}, {} ]".format(n_truth, n_reco, n_matches, n_matches / n_truth, n_matches / n_reco))
+    
+    event_counter += 1
+    """
       
   def fill_matched_jet_histograms(self, det_jet, truth_jet, det_pt):
     # assumes det and truth parts are matched beforehand:

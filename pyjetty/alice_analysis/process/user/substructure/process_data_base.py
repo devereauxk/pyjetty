@@ -35,12 +35,10 @@ import math
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj
-import fjcontrib
 
 # Analysis utilities
 from pyjetty.alice_analysis.process.base import process_io
 from pyjetty.alice_analysis.process.base import process_base
-from pyjetty.mputils import CEventSubtractor
 
 # Prevent ROOT from stealing focus when plotting
 ROOT.gROOT.SetBatch(True)
@@ -98,6 +96,10 @@ class ProcessDataBase(process_base.ProcessBase):
     else:
       self.jetpt_min_det_subtracted = 10
 
+    if 'jetR' in config:
+      self.jetR = config['jetR']
+    else:
+      self.jetR = 0.4
 
     # Create dictionaries to store grooming settings and observable settings for each observable
     # Each dictionary entry stores a list of subconfiguration parameters
@@ -255,11 +257,11 @@ class ProcessDataBase(process_base.ProcessBase):
   
 
     ############################# JET RECO ################################
-    jetR = 0.4   
+    jetR = self.jetR
 
     # Set jet definition and a jet selector
     jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-    jet_selector = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
+    jet_selector = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 0.05*jetR)
 
     if self.debug_level > 2:
         print('jet definition is:', jet_def)
@@ -268,7 +270,8 @@ class ProcessDataBase(process_base.ProcessBase):
     # Analyze
     if self.is_pp:
 
-      cs = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+      #cs = fj.ClusterSequenceArea(fj_particles, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+      cs = fj.ClusterSequence(fj_particles, jet_def)
       jets_selected = fj.sorted_by_pt(jet_selector(cs.inclusive_jets()))
 
       # KD: EEC and jet-trk preprocessed output

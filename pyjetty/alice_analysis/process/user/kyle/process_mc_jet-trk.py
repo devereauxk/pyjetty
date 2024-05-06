@@ -17,24 +17,14 @@ import argparse
 # Data analysis and plotting
 import numpy as np
 import ROOT
-import yaml
 import array
-import math
 # from array import *
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj
-import fjcontrib
-import fjtools
-import ecorrel
 
 # Analysis utilities
-from pyjetty.alice_analysis.process.base import process_io
-from pyjetty.alice_analysis.process.base import process_io_emb
-from pyjetty.alice_analysis.process.base import jet_info
 from pyjetty.alice_analysis.process.user.substructure import process_mc_base
-from pyjetty.alice_analysis.process.base import thermal_generator
-from pyjetty.mputils.csubtractor import CEventSubtractor
 
 def linbins(xmin, xmax, nbins):
   lspace = np.linspace(xmin, xmax, nbins+1)
@@ -67,13 +57,13 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     if self.is_pp:
       n_bins = [12, 15, 7] # WARNING RooUnfold seg faults if too many bins used
       binnings = [np.linspace(0,0.4,n_bins[0]+1), \
-      np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
-      np.array([10, 20, 40, 60, 80, 100, 120, 140]).astype(float) ]
+                  np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
+                  np.array([10, 20, 40, 60, 80, 100, 120, 140]).astype(float) ]
     else:
       n_bins = [12, 15, 8] # WARNING RooUnfold seg faults if too many bins used
       binnings = [np.linspace(0,0.4,n_bins[0]+1), \
-      np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
-      np.array([20, 40, 60, 80, 100, 120, 140, 160, 200]).astype(float) ]
+                  np.array([0.15, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20]).astype(float), \
+                  np.array([20, 40, 60, 80, 100, 120, 140, 160, 200]).astype(float) ]
 
     # python array with the format (faster than np array!)
     # ['gen_R', 'gen_trk_pt', 'gen_jet_pt', 'obs_R', 'obs_trk_pt', 'obs_jet_pt', 'pt_hat', 'event_n']
@@ -97,6 +87,15 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     h = ROOT.TH2D("jet_axis_diff", "jet_axis_diff", N_delta_R_bins, delta_R_bins, n_bins[2], binnings[2])
     setattr(self, name, h)
 
+    # efficiency and purity check for 1D jet pT unfolding
+    name = 'gen1D_unmatched'
+    h = ROOT.TH1D("gen1D_unmatched", "gen1D_unmatched", n_bins[2], binnings[2])
+    setattr(self, name, h)
+
+    name = 'reco1D_unmatched'
+    h = ROOT.TH1D("reco1D_unmatched", "reco1D_unmatched", n_bins[2], binnings[2])
+    setattr(self, name, h)
+
   #---------------------------------------------------------------
   # Analyze jets of a given event.
   #---------------------------------------------------------------
@@ -109,23 +108,26 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
       ############ APPLY LEADING PARTICLE and JET AREA CUTS ######
       # applied only to det/hybrid jets, not to truth jets
 
-      if jet.is_pure_ghost(): continue
+      # jet area cut
+      if not self.is_pp:
+        if jet.area() < 0.6*np.pi*jetR**2 or jet.is_pure_ghost(): continue
 
       leading_pt = np.max([c.perp() for c in jet.constituents()])
 
       # jet area and leading particle pt cut
-      if jet.area() < 0.6*np.pi*jetR**2 or leading_pt < 5 or leading_pt > 100:
-        continue
+      if leading_pt < 5 or leading_pt > 100: continue
 
-      jet_pt_corrected = jet.perp() - rho*jet.area()
+      jet_pt_corrected = jet.perp()
+      if not self.is_pp: jet_pt_corrected = jet.perp() - rho*jet.area()
 
-      if jet_pt_corrected <= self.jetpt_min_det_subtracted:
-        continue
+      if jet_pt_corrected <= self.jetpt_min_det_subtracted: continue
 
       # print("{} -> {}".format(jet.perp(), jet_pt_corrected))
 
       jets_pt_selected.append(jet_pt_corrected)
       jets_det_selected.push_back(jet)
+
+      getattr(self, 'reco1D_unmatched').Fill(jet_pt_corrected)
 
     if self.debug_level > 1:
       print('Number of det-level jets: {}'.format(len(jets_det_selected)))
@@ -136,6 +138,8 @@ class ProcessMC_JetTrk(process_mc_base.ProcessMCBase):
     for t_jet in jets_truth:
       candidates = []
       candidates_pt = []
+
+      getattr(self, 'gen1D_unmatched').Fill(t_jet.perp())
 
       for i in range(jets_det_selected.size()):
         d_jet = jets_det_selected[i]

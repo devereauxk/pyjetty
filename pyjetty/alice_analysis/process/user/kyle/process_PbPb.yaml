@@ -14,6 +14,7 @@
 process_observables: ['jet_pt_JetPt', 'trk_pt_TrkPt', 'jet-trk_shape_RL_TrkPt_JetPt', 'jet-trk_shape_RL_z_JetPt', 
     'jet-trk_ptprofile_RL_TrkPt_JetPt', 'jet-trk_ptprofile_RL_z_JetPt']
 is_pp: False
+jetR: 0.2
 use_ev_id: False
 reject_tracks_fraction: 0.0
 debug_level: 0
@@ -21,7 +22,7 @@ fast_simulation: False
 ENC_fastsim: False # only set to True when fast_simulation is set to True
 # deprecated dont use idk what it's for
 
-jetpt_min_det_subtracted: 10.0
+jetpt_min_det_subtracted: 40.0
 jetpt_min_det: 60.0
 
 # Observable block

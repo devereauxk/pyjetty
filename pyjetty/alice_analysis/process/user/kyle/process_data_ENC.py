@@ -90,8 +90,6 @@ class ProcessData_ENC(process_data_base.ProcessDataBase):
 
     for jet in jets:
 
-      if jet.is_pure_ghost(): continue
-
       if jet.perp() <= self.jetpt_min_det:
         continue
 

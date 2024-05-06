@@ -11,14 +11,12 @@ from __future__ import print_function
 # General
 import os
 import sys
-import time
 
 # Data analysis and plotting
 import ROOT
 import yaml
 import numpy as np
 from array import *
-import pandas as pd
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj

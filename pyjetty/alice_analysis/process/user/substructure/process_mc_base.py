@@ -32,22 +32,17 @@ import numpy as np
 import array
 import ROOT
 import yaml
-import random
 import math
 import sys
 
 # Fastjet via python (from external library heppy)
 import fastjet as fj
-import fjcontrib
-import fjtools
 
 # Analysis utilities
 from pyjetty.alice_analysis.process.base import process_io
 from pyjetty.alice_analysis.process.base import process_io_emb
 from pyjetty.alice_analysis.process.base import process_base
 from pyjetty.alice_analysis.process.base import thermal_generator
-from pyjetty.alice_analysis.process.base import jet_info
-from pyjetty.mputils.csubtractor import CEventSubtractor
 
 # Prevent ROOT from stealing focus when plotting
 ROOT.gROOT.SetBatch(True)
@@ -142,6 +137,11 @@ class ProcessMCBase(process_base.ProcessBase):
       self.jetpt_min_det_subtracted = config['jetpt_min_det_subtracted']
     else:
       self.jetpt_min_det_subtracted = 10
+
+    if 'jetR' in config:
+      self.jetR = config['jetR']
+    else:
+      self.jetR = 0.4
         
     if 'thermal_model' in config:
       self.thermal_model = True
@@ -571,11 +571,11 @@ class ProcessMCBase(process_base.ProcessBase):
     """    
 
     ############################# JET RECO ################################
-    jetR = 0.4   
+    jetR = self.jetR
 
     # Set jet definition and a jet selector
     jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-    jet_selector_det = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 1.05*jetR)
+    jet_selector_det = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 0.05*jetR)
     jet_selector_truth = fj.SelectorPtMin(self.jetpt_min_truth) & fj.SelectorAbsRapMax(0.9)
 
     if self.debug_level > 2:
@@ -594,7 +594,8 @@ class ProcessMCBase(process_base.ProcessBase):
     # cluster detector/hybrid jets
     if self.is_pp:
       
-      cs_det = fj.ClusterSequenceArea(fj_particles_det, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+      # cs_det = fj.ClusterSequenceArea(fj_particles_det, jet_def, fj.AreaDefinition(fj.active_area_explicit_ghosts))
+      cs_det = fj.ClusterSequence(fj_particles_det, jet_def)
       det_jets = fj.sorted_by_pt(jet_selector_det(cs_det.inclusive_jets()))
 
       # KD: EEC and jet-trk preprocessed output

@@ -45,15 +45,15 @@ def logbins(xmin, xmax, nbins):
   arr = array.array('f', lspace)
   return arr
 
-n_bins_truth = [20, 20, 7] # WARNING RooUnfold seg faults if too many bins used
+n_bins_truth = [20, 22, 7] # WARNING RooUnfold seg faults if too many bins used
 # these are the truth level binnings
 binnings_truth = [np.logspace(-5,0,n_bins_truth[0]+1), \
-            np.logspace(-2.09,0,n_bins_truth[1]+1), \
+            np.logspace(-2.299,0,n_bins_truth[1]+1), \
             np.array([5, 10, 20, 40, 60, 80, 100, 150]).astype(float) ]
 # slight difference for reco pt bin
-n_bins = [20, 20, 6]
+n_bins = [20, 22, 6]
 binnings = [np.logspace(-5,0,n_bins[0]+1), \
-            np.logspace(-2.09,0,n_bins[1]+1), \
+            np.logspace(-2.299,0,n_bins[1]+1), \
             np.array([10, 20, 40, 60, 80, 100, 150]).astype(float) ]
 
 event_counter = 0
@@ -169,7 +169,9 @@ class ProcessMC_ENC(process_mc_base.ProcessMCBase):
       candidates = []
       candidates_pt = []
 
-      getattr(self, 'gen1D_unmatched').Fill(t_jet.perp(), self.pt_hat)
+      if t_jet.eta() < 0.9 - self.jetR:
+        getattr(self, 'gen1D_unmatched').Fill(t_jet.perp(), self.pt_hat)
+      
       if t_jet.perp() > myptselector : n_truth += 1
 
       for i in range(jets_det_selected.size()):

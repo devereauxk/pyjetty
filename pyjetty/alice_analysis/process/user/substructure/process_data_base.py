@@ -261,7 +261,7 @@ class ProcessDataBase(process_base.ProcessBase):
 
     # Set jet definition and a jet selector
     jet_def = fj.JetDefinition(fj.antikt_algorithm, jetR)
-    jet_selector = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - 0.05*jetR)
+    jet_selector = fj.SelectorPtMin(self.jetpt_min_det) & fj.SelectorAbsRapMax(0.9 - jetR)
 
     if self.debug_level > 2:
         print('jet definition is:', jet_def)
